@@ -1,0 +1,268 @@
+================================================================================
+                                   CHAPTER 1
+                                 INTRODUCTION
+================================================================================
+
+Data plays a fundamental role in modern analytics, machine learning, and decision-making systems. The effectiveness and reliability of these systems largely depend on the quality of the underlying data. However, real-world datasets frequently contain issues such as missing values, duplicate records, inconsistencies, anomalies, and invalid data patterns, which can negatively impact analytical accuracy and lead to unreliable outcomes. Poor data quality can significantly affect business intelligence, predictive modeling, and automated decision-making processes.
+
+Existing data quality tools often focus on isolated tasks such as profiling, validation, or cleaning, requiring users to rely on multiple disconnected systems for complete data auditing. This increases complexity and reduces the efficiency of data preprocessing workflows. To address these challenges, the proposed project, DataVeritas, introduces a unified framework for comprehensive data quality auditing and trust scoring in tabular datasets.
+
+The framework integrates multiple functionalities including null analysis, anomaly detection, duplicate detection, entity resolution, consistency validation, and trust score computation within a single interactive platform. Implemented using Python, Streamlit, and Pandas, the system adopts a modular architecture to provide flexibility, scalability, and extensibility for data quality assessment and preprocessing tasks.
+
+--------------------------------------------------------------------------------
+1.1 Overview of the Project
+--------------------------------------------------------------------------------
+DataVeritas is a unified framework developed for comprehensive data quality auditing and trust scoring in tabular datasets. Real-world datasets often contain issues such as missing values, duplicate records, inconsistencies, invalid formats, and anomalies, which can negatively impact analytics and machine learning systems.
+
+The proposed system integrates multiple data quality functionalities within a single platform, including null analysis, uniqueness evaluation, outlier detection, duplicate detection, entity resolution, rule-based consistency validation, and computation of a composite Data Trust Score. The framework combines statistical analysis, rule-based validation, and similarity-based matching techniques to improve dataset reliability and consistency. Implemented using Python, Streamlit, and Pandas, the system follows a modular architecture that supports interactive analysis, scalability, and future extensibility.
+
+The framework provides an efficient environment for data preprocessing, auditing, and trust assessment before datasets are used in analytics and machine learning workflows.
+
+--------------------------------------------------------------------------------
+1.2 Problem Statement
+--------------------------------------------------------------------------------
+Real-world datasets frequently contain data quality issues such as missing values, duplicate records, logical inconsistencies, invalid formats, and outliers. These issues can significantly reduce the reliability of analytics and machine learning systems, leading to inaccurate predictions, misleading insights, and poor decision-making. Poor-quality data can also negatively impact business intelligence processes, statistical analysis, and automated data-driven applications.
+
+Although several tools are available for data profiling, validation, and cleaning, most existing solutions address only isolated aspects of data quality and lack integration within a unified framework. Many tools primarily focus on generating statistical summaries or performing basic validation checks, while advanced functionalities such as entity resolution, composite trust scoring, and cross-field consistency validation are either limited or unavailable.
+
+Additionally, many existing systems require technical expertise, manual intervention, or separate workflows for performing different auditing tasks. This increases the complexity of data preprocessing and reduces operational efficiency, particularly when handling large and heterogeneous datasets. The absence of a centralized and interactive platform for auditing, scoring, validation, and duplicate resolution makes comprehensive data quality assessment difficult and time-consuming.
+
+Therefore, there is a need for an integrated and user-friendly framework capable of comprehensively evaluating dataset quality, detecting inconsistencies, identifying anomalies and duplicate entities, and providing meaningful trust assessment for tabular data before it is utilized in analytics and machine learning workflows.
+
+R. Y. Wang and D. M. Strong introduced the concept that data quality extends beyond simple accuracy and includes multiple dimensions such as completeness, consistency, reliability, and relevance from the perspective of data consumers. Their work emphasizes the importance of evaluating data quality using a multidimensional approach rather than relying on isolated metrics. In the proposed DataVeritas framework, these concepts influenced the design of the composite Data Trust Score, which integrates multiple quality dimensions for comprehensive dataset reliability assessment [6].
+
+--------------------------------------------------------------------------------
+1.3 Objectives
+--------------------------------------------------------------------------------
+The main objectives of the proposed project are:
+* To develop a unified framework for comprehensive data quality auditing of tabular datasets.
+* To identify and analyze common data quality issues such as missing values, duplicate records, inconsistencies, and anomalies.
+* To implement hybrid duplicate detection and entity resolution techniques for improving dataset consistency and reliability.
+* To design a composite Data Trust Score representing overall dataset quality using multiple quality metrics.
+* To provide rule-based validation mechanisms for enforcing logical and structural consistency constraints within datasets.
+* To develop an interactive and user-friendly interface for data quality analysis and visualization.
+* To adopt a modular architecture that supports extensibility, maintainability, and future feature integration.
+* To improve dataset reliability and support effective preprocessing for analytics and machine learning workflows.
+
+--------------------------------------------------------------------------------
+1.4 Scope
+--------------------------------------------------------------------------------
+The scope of the proposed project is focused on comprehensive data quality auditing and trust assessment for tabular datasets. The system is designed to analyze structured data and identify common data quality issues such as missing values, duplicate records, inconsistencies, anomalies, and invalid data patterns.
+
+The framework supports multiple auditing functionalities including null analysis, uniqueness evaluation, outlier detection, entity resolution, rule-based consistency validation, and computation of a composite Data Trust Score. It also provides interactive visualization and AI-assisted analytical support for improving interpretability of data quality results.
+
+The project is intended for use in data preprocessing, analytics, research, and machine learning workflows where dataset reliability is essential. The modular architecture allows future integration of advanced features such as real-time monitoring, database connectivity, automated rule generation, and large-scale distributed processing.
+
+However, the current implementation primarily focuses on static tabular datasets and is not fully optimized for real-time streaming environments or extremely large-scale enterprise data pipelines.
+
+
+================================================================================
+                                   CHAPTER 2
+                                LITERATURE SURVEY
+================================================================================
+
+Data quality plays a critical role in analytics, machine learning, and data-driven decision-making systems. Several tools and frameworks have been developed for tasks such as data profiling, validation, cleaning, and duplicate detection. However, most existing solutions focus on specific aspects of data quality and lack integration within a unified platform. This chapter reviews existing systems, identifies their limitations, and discusses the proposed DataVeritas framework designed for comprehensive and integrated data quality auditing and trust assessment.
+
+--------------------------------------------------------------------------------
+2.1 Existing System
+--------------------------------------------------------------------------------
+YData Profiling is an automated data profiling and exploratory data analysis tool designed for generating detailed summaries of tabular datasets. The tool provides statistical analysis, missing value detection, correlation analysis, and visualization of dataset characteristics through automatically generated reports. It simplifies the initial process of understanding dataset structure and identifying potential quality issues. In the proposed DataVeritas framework, concepts related to automated profiling and statistical summarization are incorporated for generating dataset-level quality insights and analytical summaries. The reference also influenced the design of visualization and profiling functionalities integrated within the framework. It served as an important baseline for understanding modern automated data auditing approaches [1].
+
+Great Expectations is a rule-based data validation framework used for verifying dataset quality and enforcing predefined constraints on data attributes. The framework allows users to define expectations related to data types, null values, ranges, uniqueness, and formatting rules for validating dataset integrity. This reference is closely related to the Consistency Rule Engine implemented in the proposed DataVeritas framework. The project adopts similar concepts of configurable rule-based validation for enforcing logical consistency and structural correctness within datasets. The idea of modular validation workflows and reusable rule definitions was influenced by this framework. It also contributed to the design of user-defined consistency validation mechanisms within the system [2].
+
+OpenRefine is a data cleaning and transformation tool designed for handling messy and inconsistent datasets. It supports operations such as clustering, transformation, filtering, and duplicate identification for improving dataset quality. The tool is widely used for preprocessing and refining structured data before analytical processing. In the proposed DataVeritas framework, concepts related to duplicate handling, preprocessing workflows, and data refinement influenced the development of the Entity Resolution Engine and data quality auditing functionalities. The project extends beyond traditional cleaning operations by integrating trust score computation and multi-dimensional quality assessment. OpenRefine served as an important reference for understanding practical data preprocessing and cleaning workflows [3].
+
+Sweetviz is an automated exploratory data analysis and visualization library used for generating interactive analytical reports for tabular datasets. It provides functionalities such as feature analysis, correlation summaries, and graphical visualization of dataset statistics. The library demonstrates effective techniques for presenting analytical insights in an interpretable and user-friendly format. In the proposed DataVeritas framework, visualization concepts from Sweetviz influenced the design of interactive charts, dashboard summaries, and reporting components. The framework incorporates similar visualization-driven analysis for displaying null distributions, outlier summaries, uniqueness metrics, and trust score breakdowns [4].
+
+D-Tale is an interactive data visualization and exploratory analysis tool used for inspecting and analyzing tabular datasets through a web-based interface. It provides functionalities such as filtering, sorting, statistical summaries, and graphical analysis for efficient data exploration. In the proposed DataVeritas framework, the concept of interactive analytical workflows influenced the design of the Streamlit-based user interface. The framework extends these ideas by integrating advanced auditing functionalities including anomaly detection, consistency validation, entity resolution, and trust score computation within a unified environment [5].
+
+--------------------------------------------------------------------------------
+2.2 Disadvantages of Existing System
+--------------------------------------------------------------------------------
+The major disadvantages of existing data quality systems are as follows:
+1. Most tools focus only on isolated data quality tasks such as profiling, validation, or cleaning rather than providing a unified auditing framework.
+2. Existing systems generally lack a centralized mechanism for evaluating overall dataset reliability through composite trust scoring.
+3. Duplicate detection and entity resolution functionalities are limited or unavailable in many commonly used tools.
+4. Several platforms require coding knowledge, manual rule configuration, or technical expertise for effective usage.
+5. Existing systems often require users to switch between multiple disconnected tools for performing complete auditing workflows.
+6. Many tools provide limited support for interactive analysis and integrated visualization of data quality results.
+7. Most existing frameworks are not designed for end-to-end data quality assessment within a single environment.
+8. Scalability and extensibility limitations reduce adaptability for evolving data quality requirements and future feature integration.
+
+--------------------------------------------------------------------------------
+2.3 Proposed System
+--------------------------------------------------------------------------------
+The proposed system, DataVeritas, is a unified framework developed for comprehensive data quality auditing and trust scoring in tabular datasets. The framework is designed to identify, analyze, and manage multiple dimensions of data quality within a single interactive platform.
+
+The system integrates several functionalities, including null and completeness analysis, uniqueness evaluation, anomaly detection, duplicate detection, entity resolution, rule-based consistency validation, and computation of a composite Data Trust Score. Hybrid duplicate detection techniques combining exact matching, fuzzy similarity analysis, and configurable matching strategies are incorporated to improve duplicate identification accuracy.
+
+The framework also supports multi-dimensional quality assessment by analyzing completeness, uniqueness, consistency, validity, and anomaly presence across dataset attributes. A rule-based consistency engine enables logical validation of data through customizable validation rules and cross-field constraint checking.
+
+--------------------------------------------------------------------------------
+2.4 Advantages of Proposed System
+--------------------------------------------------------------------------------
+The proposed system provides several advantages over existing approaches:
+1. Provides a unified platform for multiple data quality auditing operations within a single environment.
+2. Supports comprehensive assessment of dataset quality using multiple quality dimensions.
+3. Incorporates hybrid duplicate detection and entity resolution techniques for improved matching accuracy.
+4. Generates a composite Data Trust Score for simplified interpretation of overall dataset reliability.
+5. Provides interactive visualization and user-friendly workflows for efficient data quality analysis.
+6. Supports customizable rule-based consistency validation for logical and structural data verification.
+7. Uses a modular architecture that improves maintainability, scalability, and future extensibility.
+8. Reduces dependency on multiple disconnected tools for preprocessing and auditing tasks.
+9. Improves dataset reliability and consistency before analytics and machine learning operations.
+10. Supports AI-assisted analytical interpretation for enhanced usability and exploratory analysis.
+11. Supports configurable and flexible auditing workflows that can be adapted to different dataset structures and application domains.
+
+The system is implemented using Python, Streamlit, and Pandas, and follows a modular architecture that improves maintainability, scalability, and extensibility. Interactive visualization and AI-assisted analytical support are incorporated to simplify interpretation of data quality results and improve user experience during preprocessing workflows.
+
+--------------------------------------------------------------------------------
+2.5 System Architecture
+--------------------------------------------------------------------------------
+The proposed framework follows a modular three-layer architecture consisting of the Presentation Layer, Feature Layer, and Core Processing Layer. This architecture ensures separation of responsibilities, modular workflow execution, and efficient integration of analytical functionalities.
+
+1. Presentation Layer
+   The Presentation Layer provides the user interface developed using Streamlit. This layer enables users to upload datasets, configure analysis parameters, define validation rules, execute auditing operations, and visualize analytical results through interactive components, charts, and reports. The interface supports navigation across multiple auditing modules and enables efficient interaction with the framework during data quality assessment workflows.
+
+2. Feature Layer
+   The Feature Layer contains independent modules responsible for different data quality auditing functionalities. These modules include data profiling, null analysis, anomaly detection, duplicate detection, entity resolution, rule-based consistency validation, trust score computation, synthetic dataset generation, and AI-assisted analysis. Each module operates independently while interacting with shared analytical components, enabling modular execution and simplified system extensibility.
+
+3. Core Processing Layer
+   The Core Processing Layer performs underlying data processing and analytical computations using Python and Pandas. This layer contains implementations of statistical analysis algorithms, scoring mechanisms, similarity matching functions, validation logic, and preprocessing operations required for comprehensive data quality assessment. The layer also manages metric computation, duplicate similarity evaluation, anomaly analysis, and trust score generation that support higher-level auditing functionalities across the framework.
+
+[Figure 2.1: System Architecture Diagram]
+
+Figure 2.1 illustrates the overall system architecture of the proposed DataVeritas framework, showing the interaction between the Presentation Layer, Feature Layer, and Core Processing Layer. The diagram represents the modular workflow and integration of analytical components responsible for comprehensive data quality auditing and trust score computation.
+
+
+================================================================================
+                                   CHAPTER 3
+                              SYSTEM REQUIREMENTS
+================================================================================
+
+The implementation of the proposed DataVeritas framework requires suitable hardware and software resources to support efficient execution of data quality auditing operations and analytical workflows. Since the system performs computational tasks such as null analysis, anomaly detection, duplicate identification, entity resolution, consistency validation, and trust score computation on tabular datasets, adequate system resources are necessary to ensure smooth processing and interactive user experience.
+
+The framework is developed using Python and Streamlit, utilizing libraries such as Pandas and Scikit-learn for data processing, statistical analysis, and machine learning-based operations. The system also incorporates visualization components and modular analytical pipelines that require stable execution environments and compatible software dependencies.
+
+The hardware requirements primarily focus on providing sufficient processing capability, memory, and storage for handling datasets and executing analytical computations efficiently. Similarly, the software requirements include the operating system, programming environment, frameworks, libraries, and development tools necessary for implementation, deployment, and maintenance of the framework.
+
+The following sections describe the minimum and recommended hardware and software specifications required for successful execution of the proposed system.
+
+--------------------------------------------------------------------------------
+3.1 Hardware Requirements
+--------------------------------------------------------------------------------
+The proposed DataVeritas framework is designed to operate on standard computing systems without requiring specialized high-performance hardware. Since the system primarily performs data preprocessing, statistical analysis, duplicate detection, anomaly identification, entity resolution, and interactive visualization on tabular datasets, moderate computational resources are sufficient for efficient execution.
+
+The processor is responsible for executing analytical computations, similarity matching operations, and rule-based validation tasks performed by the framework. A multi-core processor improves the responsiveness of interactive workflows and supports efficient processing of datasets during auditing operations.
+
+Memory resources play an important role in handling tabular datasets and performing in-memory analytical computations using libraries such as Pandas and Scikit-learn. Sufficient RAM capacity improves dataset loading, processing speed, and execution of multiple auditing modules simultaneously.
+
+Storage resources are required for maintaining project files, datasets, generated reports, cached computations, and visualization outputs. Solid State Drives (SSD) are recommended to improve data access speed and reduce loading time during processing operations.
+
+The framework also requires standard input and display devices for user interaction through the Streamlit-based interface. Internet connectivity may be required for package installation, dependency management, and integration of external AI-assisted analytical services.
+
+Table 3.1 Hardware Requirements
++---------------------+---------------------+-----------------------------+
+| COMPONENT           | MINIMUM REQUIREMENT | RECOMMENDED REQUIREMENT     |
++---------------------+---------------------+-----------------------------+
+| Processor           | Intel Core i3       | Intel Core i5 / i7          |
+| RAM                 | 4 GB                | 8 GB or higher              |
+| Storage             | 128 GB HDD          | 256 GB SSD or higher        |
+| System Type         | 64-bit System       | 64-bit System               |
+| Display             | Standard Monitor    | Full HD Display             |
+| Input Devices       | Keyboard and Mouse  | Keyboard and Mouse          |
+| Internet Connection | Required            | High-speed Internet         |
++---------------------+---------------------+-----------------------------+
+
+--------------------------------------------------------------------------------
+3.2 Software Requirements
+--------------------------------------------------------------------------------
+The proposed DataVeritas framework is implemented using modern software technologies and analytical libraries that support comprehensive data quality auditing, preprocessing, visualization, and trust assessment operations on tabular datasets. The software environment is designed to efficiently support analytical workflows such as null analysis, anomaly detection, duplicate identification, entity resolution, consistency validation, and trust score computation.
+
+Python is used as the primary programming language due to its extensive ecosystem for data analysis, machine learning, and scientific computing. The framework interface is developed using Streamlit, which enables rapid creation of interactive web-based analytical dashboards and visualization components. Data processing and statistical computations are performed using libraries such as Pandas and NumPy, while Scikit-learn supports machine learning-based anomaly detection functionalities.
+
+Additional supporting libraries are utilized for visualization, similarity matching, regular expression-based validation, and file handling operations within the framework. Development and testing activities are carried out using tools such as Visual Studio Code and Jupyter Notebook for implementation, debugging, and experimentation.
+
+The selected software technologies ensure modularity, scalability, and efficient execution of the framework across different analytical modules. The integration of interactive visualization libraries and machine learning frameworks improves interpretability of data quality metrics and supports user-friendly auditing workflows. The modular software environment also enables future extensibility for incorporating additional analytical components, database connectivity, and advanced AI-assisted functionalities within the framework.
+
+Table 3.2 Primary Software Requirements
++----------------------+---------------------+-----------------------------+
+| COMPONENT            | MINIMUM REQUIREMENT | RECOMMENDED REQUIREMENT     |
++----------------------+---------------------+-----------------------------+
+| Operating System     | Windows 10 / Linux  | Windows 11 / Latest Linux   |
+| Programming Language | Python 3.9          | Python 3.11 or higher       |
+| IDE / Dev Tool       | Jupyter Notebook    | Visual Studio Code          |
+| Framework            | Streamlit           | Latest Stable Streamlit     |
+| Web Browser          | Google Chrome       | Latest Chrome / Edge        |
++----------------------+---------------------+-----------------------------+
+
+Table 3.3 Supporting Software and Libraries
++-------------------------+---------------------+-----------------------------+
+| COMPONENT               | MINIMUM REQUIREMENT | RECOMMENDED REQUIREMENT     |
++-------------------------+---------------------+-----------------------------+
+| Data Processing Libs    | Pandas, NumPy       | Pandas, NumPy, Scikit-learn |
+| Visualization Libraries | Matplotlib          | Matplotlib, Plotly          |
+| Database Support        | SQLite              | PostgreSQL                  |
+| Version Control         | Git                 | GitHub + Git                |
+| Additional Python Pkgs  | OpenPyXL, Regex     | Latest Stable Versions      |
++-------------------------+---------------------+-----------------------------+
+
+
+================================================================================
+                                   CHAPTER 4
+                                 SYSTEM DESIGN
+================================================================================
+
+The System Design of the proposed DataVeritas framework focuses on providing a structured and modular architecture for comprehensive data quality auditing and trust assessment of tabular datasets. The design integrates multiple analytical components and processing modules to enable efficient identification, analysis, validation, and visualization of data quality issues within a unified environment.
+
+The framework is designed to support various data quality operations including null and completeness analysis, uniqueness evaluation, anomaly detection, duplicate identification, entity resolution, rule-based consistency validation, and trust score computation. Each functionality is organized as an independent module within the system architecture, enabling modular execution, maintainability, scalability, and future extensibility.
+
+The system follows a layered workflow in which datasets are uploaded through the interactive user interface, processed through analytical and validation modules, and finally transformed into interpretable quality metrics and visual outputs. The modular design also enables seamless interaction between the user interface, feature modules, and core processing components responsible for statistical analysis, scoring algorithms, similarity matching, and validation logic.
+
+The framework incorporates hybrid analytical techniques combining statistical methods, rule-based validation, and similarity-based matching approaches to improve the effectiveness and reliability of data quality assessment. In addition, the system is designed to support configurable workflows, interactive analysis, and efficient preprocessing operations for analytics and machine learning applications. This chapter describes the overall data flow architecture and the design of the composite scoring model used for evaluating dataset quality and trustworthiness.
+
+--------------------------------------------------------------------------------
+4.1 Data Flow
+--------------------------------------------------------------------------------
+The proposed DataVeritas framework follows a structured and modular data flow architecture for performing comprehensive data quality auditing and trust assessment on tabular datasets. The data flow pipeline is designed to support efficient preprocessing, analytical computation, validation, scoring, and visualization of dataset quality information within a unified workflow.
+
+The process begins with dataset ingestion through the Streamlit-based user interface, where users can upload tabular datasets in formats such as CSV or Excel. Once uploaded, the dataset is passed to the preprocessing stage, where the system performs operations such as data type identification, null value analysis, format normalization, and initial structural inspection. This stage ensures that the dataset is prepared for further analytical processing.
+
+After preprocessing, the dataset is forwarded to multiple auditing modules operating within the Feature Layer of the framework. These modules independently analyze different dimensions of data quality, including null and completeness analysis, uniqueness evaluation, anomaly detection, duplicate identification, entity resolution, and rule-based consistency validation. Statistical analysis techniques, similarity matching algorithms, and validation rules are applied during this stage to identify inconsistencies, anomalies, and duplicate entities within the dataset.
+
+The generated quality metrics and analytical results are then transferred to the scoring module, where multiple quality dimensions are aggregated using a weighted scoring mechanism to compute the composite Data Trust Score. The scoring process provides a simplified and interpretable representation of overall dataset reliability and quality.
+
+Following score computation, the processed outputs are delivered to the visualization and reporting components of the framework. The Streamlit interface presents analytical summaries, charts, validation reports, trust score breakdowns, and duplicate resolution outputs through interactive dashboards and graphical components. Users can further interact with the system by configuring validation rules, reviewing detected duplicates, and performing iterative analysis workflows.
+
+The modular data flow architecture ensures separation of processing responsibilities, efficient workflow execution, scalability, and easy integration of additional analytical modules in future enhancements.
+
+--------------------------------------------------------------------------------
+4.2 Scoring Model Design
+--------------------------------------------------------------------------------
+The Scoring Model Design of the proposed DataVeritas framework is focused on generating a composite Data Trust Score that represents the overall quality and reliability of a tabular dataset. The scoring model combines multiple data quality dimensions into a single interpretable metric, enabling users to evaluate dataset health efficiently without analyzing individual quality metrics separately.
+
+The framework evaluates several dimensions of data quality including completeness, uniqueness, consistency, anomaly presence, and duplicate occurrence. Each dimension contributes independently to the final trust score computation. Completeness analysis measures the proportion of non-missing values within the dataset, uniqueness analysis evaluates duplicate occurrences and distinct value distribution, while consistency validation checks logical correctness and rule compliance across dataset attributes. Anomaly detection modules identify abnormal or inconsistent numerical patterns that may negatively affect analytical reliability.
+
+To combine these quality dimensions, the framework employs a weighted scoring mechanism in which each metric is assigned a predefined importance weight based on its contribution to overall data reliability. The weighted scores are normalized and aggregated to produce the final Data Trust Score. This approach enables balanced evaluation of multiple quality factors while maintaining interpretability and flexibility.
+
+C. Batini and M. Scannapieco presented comprehensive methodologies and techniques for assessing and improving data quality across multiple dimensions such as completeness, consistency, accuracy, and uniqueness. Their work provides foundational concepts for structured data quality evaluation and auditing processes. In the proposed DataVeritas framework, these concepts influenced the implementation of multi-dimensional data quality analysis and the design of the composite Data Trust Score for evaluating overall dataset reliability [7].
+
+The trust score computation can be generally represented as:
+
+$$\text{Data Trust Score} = \sum_{i=1}^{n} (w_i \times q_i)$$
+
+where:
+* w_i represents the weight assigned to a specific quality dimension
+* q_i represents the normalized score of the corresponding quality metric
+
+The generated trust score provides a simplified representation of dataset quality that assists users in identifying unreliable datasets and prioritizing preprocessing operations before analytics or machine learning tasks. The scoring mechanism also supports comparative analysis between datasets and improves interpretability of complex quality auditing results.
+
+The modular design of the scoring model enables future integration of additional quality dimensions, adaptive weighting strategies, and machine learning-based scoring enhancements without affecting the existing framework architecture.
+
+
+================================================================================
+                                   CHAPTER 5
+                             SYSTEM IMPLEMENTATION
+================================================================================
+
+This chapter describes the implementation of the proposed DataVeritas framework for comprehensive data quality auditing and trust assessment in tabular datasets. The sy...
