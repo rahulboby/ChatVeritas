@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import pickle
+import re
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
@@ -18,22 +19,77 @@ def chunk_text(
     chunk_size=500,
     overlap=50
 ):
+    paragraphs = [
+        p.strip()
+        for p in text.split("\n\n")
+        if p.strip()
+    ]
+
     chunks = []
 
-    start = 0
+    current_chunk = ""
 
-    while start < len(text):
+    for paragraph in paragraphs:
 
-        end = start + chunk_size
+        # If adding this paragraph still fits,
+        # append it to the current chunk.
+        if (
+            len(current_chunk) + len(paragraph) + 2
+            <= chunk_size
+        ):
 
-        chunks.append(
-            text[start:end]
-        )
+            if current_chunk:
+                current_chunk += "\n\n"
 
-        start += chunk_size - overlap
+            current_chunk += paragraph
+
+        else:
+
+            # Save current chunk if it exists.
+            if current_chunk:
+                chunks.append(current_chunk)
+
+            # If the paragraph itself is too large,
+            # split it using the old overlapping
+            # character-based strategy.
+            if len(paragraph) > chunk_size:
+
+                start = 0
+
+                while start < len(paragraph):
+
+                    end = start + chunk_size
+
+                    chunks.append(
+                        paragraph[start:end]
+                    )
+
+                    start += (
+                        chunk_size - overlap
+                    )
+
+                current_chunk = ""
+
+            else:
+
+                current_chunk = paragraph
+
+    if current_chunk:
+        chunks.append(current_chunk)
 
     return chunks
 
+def clean_text(text):
+    # Preprocessing
+    # Remove repeated separator lines
+    text = re.sub(r"^[=\-_*]{3,}\s*$", "", text, flags=re.MULTILINE)
+
+    # Collapse multiple blank lines
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    text = text.strip()
+
+    return text
 
 def main():
 
@@ -61,6 +117,7 @@ def main():
     )
 
     all_chunks = []
+    chunk_id = 0
 
     txt_files = list(
         raw_dir.glob("*.txt")
@@ -78,8 +135,10 @@ def main():
             encoding="utf-8"
         )
 
+        # Preprocessing
+        text = clean_text(text)
+
         # Also save the source files with the chunks
-        source_file = file.name
         
         chunks = chunk_text(
             text=text,
@@ -87,7 +146,16 @@ def main():
             overlap=config["retrieval"]["chunk_overlap"]
         )
 
-        all_chunks.extend(chunks)
+        for chunk in chunks:
+            all_chunks.append(
+                {
+                    "chunk_id": chunk_id,
+                    "source": file.name,
+                    "chunk": chunk
+                }
+            )
+
+            chunk_id += 1
 
     print(
         f"Created {len(all_chunks)} chunks"
@@ -95,8 +163,9 @@ def main():
 
     print("Generating embeddings...")
 
+    texts = [item["chunk"] for item in all_chunks]
     embeddings = embedder.encode(
-        all_chunks,
+        texts,
         convert_to_numpy=True,
         show_progress_bar=True
     )

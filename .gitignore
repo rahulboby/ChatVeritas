@@ -77,3 +77,6 @@ data/processed/
 *.tmp
 *.bak
 *.swp
+
+# INSTRUCTIONS
+instructions.md
