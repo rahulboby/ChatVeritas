@@ -1,6 +1,7 @@
 {
   "model": {
     "base_model": "Qwen/Qwen2.5-3B-Instruct",
+    "adapter_repo_id": "rahulboby/chatveritas-lora-adapter",
     "adapter_path": "models/adapters",
     "use_lora": true
   },
@@ -85,5 +86,6 @@
       "up_proj",
       "down_proj"
     ]
-  }
+  },
+  "topic": "DataVeritas"
 }

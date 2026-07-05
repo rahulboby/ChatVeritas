@@ -35,7 +35,7 @@ def load_components():
     config = load_config()
 
     # ------------------- Use HF repo ID -------------------
-    adapter_repo_id = "rahulboby/chatveritas-lora-adapter" 
+    adapter_repo_id = config["model"]["adapter_repo_id"]
     use_lora = True   # or read from config, but set True if you always use adapter
 
     # Tokenizer: load from adapter repo (which contains tokenizer files)
@@ -44,7 +44,7 @@ def load_components():
 
     # ------------------- Base model -------------------
     base_model = AutoModelForCausalLM.from_pretrained(
-        config["model"]["base_model"],   # still from config, e.g. "Qwen/Qwen-7B"
+        config["model"]["base_model"],   # still from config, e.g. "Qwen/Qwen-3B" -> The adapter is trained for a 3B model now.
         dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
         device_map="auto",
         max_memory={"cpu": "12GiB", 0: "4GiB"} if torch.cuda.is_available() else {"cpu": "12GiB"},

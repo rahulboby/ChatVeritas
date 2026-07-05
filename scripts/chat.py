@@ -1,8 +1,6 @@
-import argparse
 import sys
 from pathlib import Path
 import time
-import textwrap
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
@@ -19,33 +17,35 @@ from utils.config_loader import load_config
 from utils.retriever import Retriever
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Run ChatVeritas directly in the terminal without Streamlit."
-    )
-    parser.add_argument(
-        "--prompt",
-        help="Ask one question and exit. Omit this option for interactive chat."
-    )
-    parser.add_argument(
-        "--max-new-tokens",
-        type=int,
-        help="Override generation.max_new_tokens for this run."
-    )
-    parser.add_argument(
-        "--no-sources",
-        action="store_true",
-        help="Do not print the retrieved chunk details."
-    )
-    return parser.parse_args()
+SYSTEM_PROMPT = """
+You are ChatVeritas, an expert assistant for answering questions about {config['topic']}.
+
+Instructions:
+
+- Use the retrieved context as your primary source.
+- Answer only using the provided context.
+- If the answer is explicitly stated, answer confidently.
+- If it can only be inferred, clearly state that it is an inference.
+- If the answer is not contained in the retrieved context, reply:
+
+'I don't have enough information in the provided documents.'
+
+Never invent facts.
+""".strip()
+
+SMALL_TALK = {
+    "hi",
+    "hello",
+    "hey",
+    "good morning",
+    "good evening",
+    "thanks",
+    "thank you",
+    "bye"
+}
 
 
 def main():
-
-    args = parse_args()
-
-    if args.max_new_tokens is not None and args.max_new_tokens <= 0:
-        raise ValueError("--max-new-tokens must be greater than zero.")
 
     overall_start = time.perf_counter()
 
@@ -60,6 +60,9 @@ def main():
         adapter_path = PROJECT_ROOT / adapter_path
 
     use_lora = bool(config["model"].get("use_lora", False))
+
+    use_lora = input("Use LoRA? (y/n): ").lower().strip() in ["y", "yes"]
+
     adapter_is_complete = (
         (adapter_path / "adapter_config.json").is_file()
         and (
@@ -125,6 +128,8 @@ def main():
         low_cpu_mem_usage=True
     )
 
+    # If use_lora is False (see the toggle above), this branch is skipped
+    # and "model" is simply the base Qwen model with no adapter applied.
     if use_lora:
         model = PeftModel.from_pretrained(
             base_model,
@@ -177,97 +182,110 @@ def main():
     print(f"Embedding device: {config['embedding'].get('device', 'cpu')}")
     print(f"Reranker device: {config['reranker'].get('device', 'cpu')}")
 
-    single_prompt = args.prompt is not None
-
-    if single_prompt:
-        print("\nRunning one-shot terminal test.\n")
-    else:
-        print("\nRAG Chat Ready")
-        print("Type 'exit' to quit\n")
+    print("\nRAG Chat Ready")
+    print("Type 'exit' to quit\n")
 
     while True:
 
-        if single_prompt:
-            question = args.prompt
-            print(f"You: {question}")
-        else:
-            try:
-                question = input("You: ")
-            except (EOFError, KeyboardInterrupt):
-                print("\nExiting.")
-                break
+        try:
+            question = input("You: ")
+        except (EOFError, KeyboardInterrupt):
+            print("\nExiting.")
+            break
 
         question = question.strip()
 
         if not question:
-            if single_prompt:
-                raise ValueError("--prompt cannot be empty.")
             continue
 
         if question.lower() == "exit":
             break
 
-        print("\nRetrieving...")
+        # Skip retrieval entirely for simple greetings / small talk.
+        if question.lower() in SMALL_TALK:
 
-        start = time.perf_counter()
-
-        retrieval = retriever.retrieve(question)
-
-        print(f"Retriever finished in {(time.perf_counter()-start):.2f} sec")
-
-        retrieved_chunks = retrieval["results"]
-        metrics = retrieval["metrics"]
-
-        print(metrics)
-
-        context = "\n\n".join(
-            [
-                item["chunk"]
-                for item in retrieved_chunks
+            messages = [
+                {
+                    "role": "user",
+                    "content": question
+                }
             ]
-        )
 
-        print(f"Context length: {len(context)} chars")
+        else:
 
-        prompt = textwrap.dedent(f"""
-            You are an expert technical assistant answering questions about the provided documents.
+            print("\nRetrieving...")
 
-            Use the retrieved context as your PRIMARY source of information.
+            start = time.perf_counter()
 
-            Guidelines:
+            retrieval = retriever.retrieve(question)
 
-            1. Base your answer primarily on the provided context.
+            print(f"Retriever finished in {(time.perf_counter()-start):.2f} sec")
 
-            2. If the answer is explicitly stated in the context, answer confidently.
+            retrieved_chunks = retrieval["results"]
+            metrics = retrieval["metrics"]
 
-            3. If the answer is not explicitly stated but can be reasonably inferred from the available information, clearly state that it is an inference.
+            print(metrics)
 
-            4. Only respond with:
-            "I don't have enough information in the provided documents."
-            if the context contains insufficient information.
+            context_parts = []
 
-            5. Never invent facts.
+            for i, item in enumerate(retrieved_chunks, start=1):
+                context_parts.append(
+                    f"""
+Document {i}
+Source: {item['source']}
 
-            Context:
-            {context}
+{item['chunk']}
+"""
+                )
 
-            Question:
-            {question}
+            context = "\n" + ("\n" + "=" * 80 + "\n").join(context_parts)
 
-            Answer:
-        """).strip()
+            print(f"Context length: {len(context)} chars")
+
+            # Temporary debug: check what the retriever actually returned.
+            print("=" * 80)
+            print("Retrieved Context")
+            print("=" * 80)
+            print(context[:1000])
+            print("=" * 80)
+
+            user_content = f"""
+Context:
+
+{context}
+
+Question:
+
+{question}
+"""
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": user_content
+                }
+            ]
 
         print("Applying chat template...")
 
         start = time.perf_counter()
 
         text = tokenizer.apply_chat_template(
-            [{"role": "user", "content": prompt}],
+            messages,
             tokenize=False,
             add_generation_prompt=True
         )
 
         print(f"Template applied in {(time.perf_counter()-start):.3f} sec")
+
+        # Temporary debug: verify the final prompt sent to the model.
+        print("=" * 80)
+        print(text)
+        print("=" * 80)
 
         print("Tokenizing prompt...")
 
@@ -290,11 +308,7 @@ def main():
             temperature = config["generation"]["temperature"]
 
             generation_kwargs = {
-                "max_new_tokens": (
-                    args.max_new_tokens
-                    if args.max_new_tokens is not None
-                    else config["generation"]["max_new_tokens"]
-                ),
+                "max_new_tokens": config["generation"]["max_new_tokens"],
                 "do_sample": temperature > 0,
                 "pad_token_id": tokenizer.pad_token_id
             }
@@ -320,7 +334,7 @@ def main():
         print("\nAssistant:\n")
         print(response.strip())
 
-        if not args.no_sources:
+        if question.lower() not in SMALL_TALK:
             print("\nRetrieved Chunks")
             print("-" * 80)
 
@@ -332,9 +346,6 @@ def main():
                 print(f"L2 Distance : {chunk['distance']:.4f}")
                 print(f"CE Score    : {chunk['rerank_score']:.4f}")
                 print("-" * 80)
-
-        if single_prompt:
-            break
 
 
 if __name__ == "__main__":
