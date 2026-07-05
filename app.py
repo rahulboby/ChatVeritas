@@ -29,92 +29,39 @@ from utils.retriever import Retriever
 hf_logging.set_verbosity_error()
 faulthandler.enable(all_threads=True)
 
-# ---------- Helper for debug logging ----------
-def debug_log(msg):
-    """Print a timestamped message to console (immediately flushed)."""
-    timestamp = time.strftime("%H:%M:%S")
-    print(f"[{timestamp}] {msg}", flush=True)
-    # Optionally also show in Streamlit UI – uncomment next line if needed
-    # st.write(f"DEBUG: {msg}")
-
 # ---------- Load components with checkpoints ----------
 @st.cache_resource
 def load_components():
-    debug_log("START load_components")
-    try:
-        config = load_config()
-        debug_log("Config loaded")
-    except Exception as e:
-        debug_log(f"Config load FAILED: {e}")
-        raise
+    config = load_config()
 
-    adapter_path = Path(config["model"]["adapter_path"])
-    if not adapter_path.is_absolute():
-        adapter_path = PROJECT_ROOT / adapter_path
-    debug_log(f"Adapter path: {adapter_path}")
+    # ------------------- Use HF repo ID -------------------
+    adapter_repo_id = "rahulboby/chatveritas-lora-adapter" 
+    use_lora = True   # or read from config, but set True if you always use adapter
 
-    use_lora = config["model"].get("use_lora", False)
-    debug_log(f"use_lora = {use_lora}")
+    # Tokenizer: load from adapter repo (which contains tokenizer files)
+    # If tokenizer files aren't there, fallback to base model
+    tokenizer = AutoTokenizer.from_pretrained(adapter_repo_id)
 
-    # Check adapter files
-    adapter_is_complete = (
-        (adapter_path / "adapter_config.json").is_file()
-        and (
-            (adapter_path / "adapter_model.safetensors").is_file()
-            or (adapter_path / "adapter_model.bin").is_file()
-        )
-    )
-    if use_lora and not adapter_is_complete:
-        raise FileNotFoundError(f"Adapter incomplete at {adapter_path}")
-
-    tokenizer_source = (
-        adapter_path
-        if use_lora and (adapter_path / "tokenizer_config.json").is_file()
-        else config["model"]["base_model"]
-    )
-    debug_log(f"Tokenizer source: {tokenizer_source}")
-
-    # ---------- 1. Load tokenizer ----------
-    debug_log("Loading tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_source)
-    debug_log("Tokenizer loaded")
-
-    # ---------- 2. Load base model (NO offload) ----------
-    inference_config = config.get("inference", {})
-    model_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-    debug_log(f"Model dtype: {model_dtype}")
-    max_memory = {"cpu": inference_config.get("max_cpu_memory", "12GiB")}
-    if torch.cuda.is_available():
-        max_memory[0] = inference_config.get("max_gpu_memory", "4GiB")
-    debug_log(f"Max memory: {max_memory}")
-
-    debug_log("Loading base model (without offload folder) ...")
+    # ------------------- Base model -------------------
     base_model = AutoModelForCausalLM.from_pretrained(
-        config["model"]["base_model"],
-        dtype=model_dtype,
+        config["model"]["base_model"],   # still from config, e.g. "Qwen/Qwen-7B"
+        dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
         device_map="auto",
-        max_memory=max_memory,
+        max_memory={"cpu": "12GiB", 0: "4GiB"} if torch.cuda.is_available() else {"cpu": "12GiB"},
         low_cpu_mem_usage=True,
-        # NO offload_folder / offload_state_dict – they cause Windows crashes
     )
-    debug_log("Base model loaded")
 
-    # ---------- 3. Apply LoRA if needed ----------
+    # ------------------- Load LoRA from HF -------------------
     if use_lora:
-        debug_log("Loading LoRA adapter...")
-        model = PeftModel.from_pretrained(base_model, adapter_path, is_trainable=False)
-        debug_log("LoRA adapter loaded")
+        model = PeftModel.from_pretrained(base_model, adapter_repo_id)
     else:
         model = base_model
-        debug_log("LoRA disabled")
 
     model.eval()
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
-    debug_log("Model ready")
 
     # ---------- 4. Load Retriever (after model) ----------
-    debug_log("Loading Retriever...")
     retriever = Retriever(
         index_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "index.faiss",
         chunks_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "chunks.pkl",
@@ -125,37 +72,27 @@ def load_components():
         reranker_model=config["reranker"]["model"],
         reranker_device=config["reranker"].get("device", "cpu"),
     )
-    debug_log("Retriever loaded")
 
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-        debug_log("CUDA cache cleared")
 
-    debug_log("COMPLETE load_components")
     return model, tokenizer, retriever
 
 
 # ---------- Generate with checkpoints ----------
 def generate_response(question, model, tokenizer, retriever):
-    debug_log(f"START generate_response for: {question[:50]}...")
     try:
         config = load_config()
-        debug_log("Config reloaded for generation")
     except Exception as e:
-        debug_log(f"Config reload FAILED: {e}")
         raise
 
     # ---- Retrieval ----
-    debug_log("Calling retriever.retrieve()...")
     retrieval = retriever.retrieve(question)
-    debug_log("Retrieval completed")
 
     chunks = retrieval["results"]
     metrics = retrieval["metrics"]
-    debug_log(f"Retrieved {len(chunks)} chunks")
 
     context = "\n\n".join(item["chunk"] for item in chunks)
-    debug_log(f"Context length: {len(context)} chars")
 
     # ---- Build prompt ----
     prompt = textwrap.dedent(f"""
@@ -176,21 +113,15 @@ def generate_response(question, model, tokenizer, retriever):
 
         Answer:
     """).strip()
-    debug_log("Prompt built")
 
     # ---- Chat template ----
-    debug_log("Applying chat template...")
     messages = [{"role": "user", "content": prompt}]
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    debug_log("Chat template applied")
 
     # ---- Tokenization ----
-    debug_log("Tokenizing input...")
     inputs = tokenizer(text, return_tensors="pt").to(model.device)
-    debug_log(f"Tokenized: {inputs['input_ids'].shape[1]} tokens")
 
     # ---- Generation ----
-    debug_log("Starting model.generate()...")
     with torch.inference_mode():
         temperature = config["generation"]["temperature"]
         generation_kwargs = {
@@ -204,16 +135,12 @@ def generate_response(question, model, tokenizer, retriever):
         gen_start = time.perf_counter()
         outputs = model.generate(**inputs, **generation_kwargs)
         metrics["generation_time"] = time.perf_counter() - gen_start
-    debug_log("Generation completed")
 
     # ---- Decode ----
-    debug_log("Decoding generated tokens...")
     generated_tokens = outputs[0][inputs["input_ids"].shape[1]:]
     response = tokenizer.decode(generated_tokens, skip_special_tokens=True)
     metrics["prompt_tokens"] = inputs["input_ids"].shape[1]
-    debug_log("Decoding completed")
 
-    debug_log("COMPLETE generate_response")
     return response.strip(), chunks, metrics
 
 
@@ -221,7 +148,6 @@ def generate_response(question, model, tokenizer, retriever):
 st.set_page_config(page_title="Qwen_RAG Chatbot", layout="wide")
 st.title("Qwen RAG Chatbot")
 
-debug_log("Streamlit UI starting – loading components...")
 
 # We catch any exception during loading and display it in the UI
 try:
@@ -229,10 +155,8 @@ try:
 except Exception as e:
     st.error(f"Failed to load components: {e}")
     st.code(traceback.format_exc(), language="python")
-    debug_log(f"load_components EXCEPTION: {e}")
     st.stop()
 
-debug_log("Components loaded, UI ready")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -242,7 +166,6 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 if prompt := st.chat_input("Ask a question..."):
-    debug_log(f"User prompt: {prompt[:50]}...")
 
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -255,7 +178,6 @@ if prompt := st.chat_input("Ask a question..."):
             except Exception as e:
                 st.error(f"Error during generation: {e}")
                 st.code(traceback.format_exc(), language="python")
-                debug_log(f"generate_response EXCEPTION: {e}")
                 st.stop()
 
         st.markdown(response)
@@ -289,4 +211,3 @@ if prompt := st.chat_input("Ask a question..."):
                 st.write(f"- {source}")
 
     st.session_state.messages.append({"role": "assistant", "content": response})
-    debug_log("Response added to session state")
