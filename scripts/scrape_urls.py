@@ -3,6 +3,10 @@ import re
 
 import trafilatura
 
+"""
+    Scrape URLs and save the content as text files in OUTPUT_DIR. The text files are named based on the URL, sanitized to be valid filenames.
+"""
+
 # ==============================================================================
 # EDIT THESE
 # ==============================================================================

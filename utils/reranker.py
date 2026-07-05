@@ -5,10 +5,14 @@ class Reranker:
 
     def __init__(
         self,
-        model_name="cross-encoder/ms-marco-MiniLM-L-6-v2"
+        model_name="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        device="cpu"
     ):
 
-        self.model = CrossEncoder(model_name)
+        self.model = CrossEncoder(
+            model_name,
+            device=device
+        )
 
     def rerank(
         self,

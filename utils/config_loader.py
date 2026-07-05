@@ -1,5 +1,5 @@
+import json
 from pathlib import Path
-import yaml
 
 
 def load_config():
@@ -7,8 +7,8 @@ def load_config():
         Path(__file__)
         .parent.parent
         / "config"
-        / "config.yaml"
+        / "config.json"
     )
 
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
+    with open(config_path, "r", encoding="utf-8") as f:
+        return json.load(f)

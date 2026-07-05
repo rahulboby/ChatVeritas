@@ -1,0 +1,4 @@
+[server]
+# Streamlit's watcher can race with native PyTorch/FAISS worker threads on
+# Windows and terminate python.exe without a Python traceback.
+fileWatcherType = "none"

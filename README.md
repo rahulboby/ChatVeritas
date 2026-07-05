@@ -2,7 +2,7 @@
 
 This project implements a **Retrieval-Augmented Generation (RAG)** chatbot using **Qwen 2.5**, **Sentence Transformers**, **FAISS**, and **Streamlit**. The system allows a user to place custom `.txt` documents into a folder, index them into a vector database, and query them through a conversational interface.
 
-Unlike fine-tuning, the model weights are **never modified**. Instead, the knowledge remains external to the LLM and is retrieved dynamically at inference time.
+The project combines RAG with optional QLoRA fine-tuning. RAG keeps document knowledge in FAISS, while QLoRA trains a small PEFT adapter and leaves the base Qwen weights unchanged.
 
 ---
 
@@ -424,11 +424,15 @@ index.search(
 
 Current configuration:
 
-```yaml
-top_k: 3
+```json
+{
+  "retrieval": {
+    "top_k": 5
+  }
+}
 ```
 
-The three nearest document chunks are returned.
+The five nearest document chunks are returned.
 
 Unlike keyword search, retrieval is based on **semantic similarity**, not exact word matching.
 

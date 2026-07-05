@@ -65,6 +65,16 @@ huggingface/
 # Processed Data (if generated)
 # ==========================================
 data/processed/
+data/cache/
+data/model_offload/
+data/raw/
+data/vectorstore/
+
+# ==========================================
+# Fine-tuning Outputs
+# ==========================================
+models/adapters/
+models/checkpoints/
 
 # ==========================================
 # Logs

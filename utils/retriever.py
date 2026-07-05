@@ -18,7 +18,10 @@ class Retriever:
         chunks_path,
         embedding_model,
         top_k,
-        faiss_candidates
+        faiss_candidates,
+        embedding_device="cpu",
+        reranker_model="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        reranker_device="cpu"
     ):
 
         self.index = faiss.read_index(
@@ -33,13 +36,32 @@ class Retriever:
             self.chunks = pickle.load(f)
 
         self.embedder = SentenceTransformer(
-            embedding_model
+            embedding_model,
+            device=embedding_device
         )
 
         self.top_k = top_k
         self.faiss_candidates = faiss_candidates
 
-        self.reranker = Reranker()
+        if self.top_k <= 0:
+            raise ValueError("top_k must be greater than zero.")
+
+        if self.faiss_candidates <= 0:
+            raise ValueError("faiss_candidates must be greater than zero.")
+
+        if self.index.ntotal != len(self.chunks):
+            raise ValueError(
+                "FAISS index and chunk metadata are out of sync: "
+                f"{self.index.ntotal} vectors != {len(self.chunks)} chunks."
+            )
+
+        if self.index.ntotal == 0:
+            raise ValueError("The FAISS index is empty. Run scripts/ingest.py first.")
+
+        self.reranker = Reranker(
+            model_name=reranker_model,
+            device=reranker_device
+        )
 
     def retrieve(
         self,
@@ -71,16 +93,21 @@ class Retriever:
         # ----------------------------
         start = time.perf_counter()
 
+        candidate_count = min(
+            self.faiss_candidates,
+            self.index.ntotal
+        )
+
         distances, indices = self.index.search(
             query_embedding,
-            self.faiss_candidates
+            candidate_count
         )
 
         metrics["retrieval_time_ms"] = (
             time.perf_counter() - start
         ) * 1000
 
-        metrics["faiss_candidates"] = self.faiss_candidates
+        metrics["faiss_candidates"] = candidate_count
 
         results = []
 

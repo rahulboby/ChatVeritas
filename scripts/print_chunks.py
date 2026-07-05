@@ -7,7 +7,9 @@ sys.path.append(str(PROJECT_ROOT))
 
 from utils.config_loader import load_config
 
-# Prints all the chunks frorm the chunks.pkl file in a readable format.
+"""
+    Prints all the chunks frorm the chunks.pkl file in a readable format.
+"""
 
 def main():
 
