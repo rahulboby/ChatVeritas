@@ -35,7 +35,7 @@
     "training_checkpoints": "models/checkpoints"
   },
   "dataset": {
-    "max_chunk_tokens": 450,
+    "max_chunk_tokens": 500,
     "minimum_paragraph_length": 40
   },
 
@@ -57,7 +57,7 @@
     "eval_batch_size": 1,
     "gradient_accumulation": 8,
     "learning_rate": 0.0002,
-    "max_sequence_length": 1024,
+    "max_sequence_length": 2048,
     "validation_split": 0.05,
     "gradient_checkpointing": true,
     "packing": false,

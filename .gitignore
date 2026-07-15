@@ -68,7 +68,7 @@ data/processed/
 data/cache/
 data/model_offload/
 data/raw/
-data/vectorstore/
+# data/vectorstore/
 
 # ==========================================
 # Fine-tuning Outputs
