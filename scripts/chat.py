@@ -44,12 +44,7 @@ SMALL_TALK = {
     "bye"
 }
 
-
-def main():
-
-    overall_start = time.perf_counter()
-
-    print("=" * 80)
+def load_chatveritas(use_lora: bool = False):
     print("Loading configuration...")
     config = load_config()
     print("Done.")
@@ -58,10 +53,6 @@ def main():
     adapter_path = Path(config["model"]["adapter_path"])
     if not adapter_path.is_absolute():
         adapter_path = PROJECT_ROOT / adapter_path
-
-    use_lora = bool(config["model"].get("use_lora", False))
-
-    use_lora = input("Use LoRA? (y/n): ").lower().strip() in ["y", "yes"]
 
     adapter_is_complete = (
         (adapter_path / "adapter_config.json").is_file()
@@ -177,79 +168,63 @@ def main():
     # --------------------------------------------------
 
     print("\nEverything loaded.")
-    print(f"Total startup time: {(time.perf_counter()-overall_start):.2f} sec")
     print("Inference mode: FP16 with automatic CPU/GPU offload")
     print(f"Embedding device: {config['embedding'].get('device', 'cpu')}")
     print(f"Reranker device: {config['reranker'].get('device', 'cpu')}")
 
-    print("\nRAG Chat Ready")
-    print("Type 'exit' to quit\n")
+    return {
+        "config": config,
+        "model": model,
+        "tokenizer": tokenizer,
+        "retriever": retriever
+    }
 
-    while True:
+def chat(chatveritas, question):
 
-        try:
-            question = input("You: ")
-        except (EOFError, KeyboardInterrupt):
-            print("\nExiting.")
-            break
+    config = chatveritas["config"]
+    model = chatveritas["model"]
+    tokenizer = chatveritas["tokenizer"]
+    retriever = chatveritas["retriever"]
+    system_prompt = SYSTEM_PROMPT.format(
+        config=config
+    )
 
-        question = question.strip()
+    question = question.strip()
 
-        if not question:
-            continue
+    if not question:
+        return ""
 
-        if question.lower() == "exit":
-            break
+    if question.lower() in SMALL_TALK:
 
-        # Skip retrieval entirely for simple greetings / small talk.
-        if question.lower() in SMALL_TALK:
+        messages = [
+            {
+                "role": "user",
+                "content": question
+            }
+        ]
 
-            messages = [
-                {
-                    "role": "user",
-                    "content": question
-                }
-            ]
+    else:
 
-        else:
+        retrieval = retriever.retrieve(question)
 
-            print("\nRetrieving...")
+        retrieved_chunks = retrieval["results"]
 
-            start = time.perf_counter()
+        context_parts = []
 
-            retrieval = retriever.retrieve(question)
+        for i, item in enumerate(retrieved_chunks, start=1):
 
-            print(f"Retriever finished in {(time.perf_counter()-start):.2f} sec")
-
-            retrieved_chunks = retrieval["results"]
-            metrics = retrieval["metrics"]
-
-            print(metrics)
-
-            context_parts = []
-
-            for i, item in enumerate(retrieved_chunks, start=1):
-                context_parts.append(
-                    f"""
+            context_parts.append(
+                f"""
 Document {i}
 Source: {item['source']}
 
 {item['chunk']}
 """
-                )
+            )
 
-            context = "\n" + ("\n" + "=" * 80 + "\n").join(context_parts)
+        context = "\n" + ("\n" + "=" * 80 + "\n").join(context_parts)
 
-            print(f"Context length: {len(context)} chars")
-
-            # Temporary debug: check what the retriever actually returned.
-            print("=" * 80)
-            print("Retrieved Context")
-            print("=" * 80)
-            print(context[:1000])
-            print("=" * 80)
-
-            user_content = f"""
+        user_content = f"""
 Context:
 
 {context}
@@ -259,94 +234,91 @@ Question:
 {question}
 """
 
-            messages = [
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": user_content
-                }
-            ]
-
-        print("Applying chat template...")
-
-        start = time.perf_counter()
-
-        text = tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True
-        )
-
-        print(f"Template applied in {(time.perf_counter()-start):.3f} sec")
-
-        # Temporary debug: verify the final prompt sent to the model.
-        print("=" * 80)
-        print(text)
-        print("=" * 80)
-
-        print("Tokenizing prompt...")
-
-        start = time.perf_counter()
-
-        inputs = tokenizer(
-            text,
-            return_tensors="pt"
-        ).to(model.device)
-
-        print(f"Prompt tokens: {inputs['input_ids'].shape[1]}")
-        print(f"Tokenization took {(time.perf_counter()-start):.3f} sec")
-
-        print("Generating...")
-
-        start = time.perf_counter()
-
-        with torch.inference_mode():
-
-            temperature = config["generation"]["temperature"]
-
-            generation_kwargs = {
-                "max_new_tokens": config["generation"]["max_new_tokens"],
-                "do_sample": temperature > 0,
-                "pad_token_id": tokenizer.pad_token_id
+        messages = [
+            {
+                "role": "system",
+                "content": system_prompt
+            },
+            {
+                "role": "user",
+                "content": user_content
             }
-
-            if temperature > 0:
-                generation_kwargs["temperature"] = temperature
-
-            outputs = model.generate(**inputs, **generation_kwargs)
-
-        print(f"Generation took {(time.perf_counter()-start):.2f} sec")
-
-        generated_tokens = outputs[0][
-            inputs["input_ids"].shape[1]:
         ]
 
-        print(f"Generated {generated_tokens.shape[0]} tokens")
+    text = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
 
-        response = tokenizer.decode(
-            generated_tokens,
-            skip_special_tokens=True
+    inputs = tokenizer(
+        text,
+        return_tensors="pt"
+    ).to(model.device)
+
+    temperature = config["generation"]["temperature"]
+
+    generation_kwargs = {
+        "max_new_tokens": config["generation"]["max_new_tokens"],
+        "do_sample": temperature > 0,
+        "pad_token_id": tokenizer.pad_token_id
+    }
+
+    if temperature > 0:
+        generation_kwargs["temperature"] = temperature
+
+    with torch.inference_mode():
+
+        outputs = model.generate(
+            **inputs,
+            **generation_kwargs
         )
 
+    generated_tokens = outputs[0][inputs["input_ids"].shape[1]:]
+
+    response = tokenizer.decode(
+        generated_tokens,
+        skip_special_tokens=True
+    )
+
+    return response.strip()
+
+def main():
+
+    overall_start = time.perf_counter()
+
+    print("=" * 80)
+
+    choice = input("Use LoRA? (y/n): ").lower().strip()
+
+    use_lora = choice in ["y", "yes"]
+
+    chatveritas = load_chatveritas(use_lora)
+
+    print(f"Startup time: {time.perf_counter()-overall_start:.2f} sec")
+    print("\nRAG Chat Ready")
+    print("Type 'exit' to quit\n")
+
+    while True:
+
+        try:
+            question = input("You: ").strip()
+
+        except (KeyboardInterrupt, EOFError):
+
+            print("\nExiting.")
+            break
+
+        if question.lower() == "exit":
+            break
+
+        if not question:
+            continue
+
+        answer = chat(chatveritas, question)
+
         print("\nAssistant:\n")
-        print(response.strip())
-
-        if question.lower() not in SMALL_TALK:
-            print("\nRetrieved Chunks")
-            print("-" * 80)
-
-            for chunk in retrieved_chunks:
-
-                print(f"Source      : {chunk['source']}")
-                print(f"Chunk ID    : {chunk['chunk_id']}")
-                print(f"FAISS Rank  : {chunk['faiss_rank']}")
-                print(f"L2 Distance : {chunk['distance']:.4f}")
-                print(f"CE Score    : {chunk['rerank_score']:.4f}")
-                print("-" * 80)
-
+        print(answer)
 
 if __name__ == "__main__":
     main()

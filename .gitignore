@@ -73,7 +73,7 @@ data/raw/
 # ==========================================
 # Fine-tuning Outputs
 # ==========================================
-models/adapters/
+# models/adapters/
 models/checkpoints/
 
 # ==========================================
