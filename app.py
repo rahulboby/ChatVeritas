@@ -36,7 +36,8 @@ def load_components():
 
     # ------------------- Use HF repo ID -------------------
     adapter_repo_id = config["model"]["adapter_repo_id"]
-    use_lora = True   # or read from config, but set True if you always use adapter
+    use_lora = False   # or read from config, but set True if you always use adapter
+
 
     # Tokenizer: load from adapter repo (which contains tokenizer files)
     # If tokenizer files aren't there, fallback to base model
