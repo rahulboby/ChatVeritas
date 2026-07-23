@@ -2,48 +2,45 @@
   "model": {
     "base_model": "Qwen/Qwen2.5-3B-Instruct",
     "adapter_repo_id": "rahulboby/chatveritas-lora-adapter",
-    "adapter_path": "models/adapters",
-    "use_lora": true
+    "adapter_path": "models/adapters"
   },
+
   "embedding": {
     "model": "sentence-transformers/all-MiniLM-L6-v2",
     "device": "cpu"
   },
+
   "reranker": {
     "model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
     "device": "cpu"
   },
+
   "retrieval": {
     "top_k": 5,
-    "chunk_size": 1500,
+    "chunk_size": 1000,
     "chunk_overlap": 80,
     "faiss_candidates": 30
   },
+
   "generation": {
     "max_new_tokens": 2048,
-    "temperature": 0.3,
-    "model": "openai/gpt-oss-20b"
+    "temperature": 0.3
   },
-  "inference": {
-    "max_gpu_memory": "4GiB",
-    "max_cpu_memory": "12GiB",
-    "offload_directory": "data/model_offload"
-  },
+
   "paths": {
     "raw_data": "data/raw",
     "vectorstore": "data/vectorstore",
     "processed_data": "data/processed/train.jsonl",
     "training_checkpoints": "models/checkpoints"
   },
+
   "dataset": {
-    "max_chunk_tokens": 500,
-    "minimum_paragraph_length": 40
+    "max_chunk_tokens": 500
   },
 
   "llm": {
     "provider": "groq",
-    "model": "qwen/qwen3-32b",
-    "tokenizer_model": "Qwen/Qwen2.5-3B-Instruct",
+    "model": "openai/gpt-oss-120b",
     "temperature": 0.7,
     "max_retries": 3
   },
@@ -52,41 +49,19 @@
     "enabled": true,
     "directory": "data/cache"
   },
+
   "training": {
     "epochs": 3,
     "batch_size": 2,
-    "eval_batch_size": 1,
     "gradient_accumulation": 8,
     "learning_rate": 0.0002,
-    "max_sequence_length": 2048,
-    "validation_split": 0.05,
-    "gradient_checkpointing": true,
-    "packing": false,
-    "optimizer": "paged_adamw_8bit",
-    "lr_scheduler": "cosine",
-    "warmup_ratio": 0.03,
-    "weight_decay": 0.0,
-    "max_grad_norm": 1.0,
-    "logging_steps": 5,
-    "save_steps": 50,
-    "eval_steps": 50,
-    "save_total_limit": 2,
-    "seed": 42
+    "max_sequence_length": 2048
   },
+
   "lora": {
     "r": 16,
     "alpha": 32,
     "dropout": 0.05,
-    "bias": "none",
-    "target_modules": [
-      "q_proj",
-      "k_proj",
-      "v_proj",
-      "o_proj",
-      "gate_proj",
-      "up_proj",
-      "down_proj"
-    ]
-  },
-  "topic": "DataVeritas"
+    "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+  }
 }

@@ -37,6 +37,7 @@ safetensors
 numpy
 tqdm
 packaging
+langchain_text_splitters
 
 # Tokenizer Support
 

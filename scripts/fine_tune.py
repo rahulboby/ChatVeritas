@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import sys
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -24,14 +26,12 @@ from utils.config_loader import load_config
 
 def project_path(value: str | Path) -> Path:
     """Resolve a configured path relative to the ChatVeritas project root."""
-
     path = Path(value).expanduser()
     return path if path.is_absolute() else PROJECT_ROOT / path
 
 
 def validate_dataset(dataset_path: Path) -> list[dict[str, Any]]:
     """Read and validate ChatVeritas conversational JSONL records."""
-
     if not dataset_path.is_file():
         raise FileNotFoundError(
             f"Training dataset not found: {dataset_path}. "
@@ -39,12 +39,10 @@ def validate_dataset(dataset_path: Path) -> list[dict[str, Any]]:
         )
 
     records: list[dict[str, Any]] = []
-
     with dataset_path.open("r", encoding="utf-8") as dataset_file:
         for line_number, raw_line in enumerate(dataset_file, start=1):
             if not raw_line.strip():
                 continue
-
             try:
                 record = json.loads(raw_line)
             except json.JSONDecodeError as exc:
@@ -53,7 +51,6 @@ def validate_dataset(dataset_path: Path) -> list[dict[str, Any]]:
                 ) from exc
 
             messages = record.get("messages") if isinstance(record, dict) else None
-
             if not isinstance(messages, list) or len(messages) < 2:
                 raise ValueError(
                     f"Line {line_number} must contain at least two messages."
@@ -65,25 +62,20 @@ def validate_dataset(dataset_path: Path) -> list[dict[str, Any]]:
                     raise ValueError(
                         f"Line {line_number}, message {message_number} must be an object."
                     )
-
                 role = message.get("role")
                 content = message.get("content")
-
                 if role not in {"system", "user", "assistant"}:
                     raise ValueError(
                         f"Line {line_number}, message {message_number} has invalid role: {role!r}."
                     )
-
                 if not isinstance(content, str) or not content.strip():
                     raise ValueError(
                         f"Line {line_number}, message {message_number} has empty content."
                     )
-
                 normalized_messages.append({"role": role, "content": content.strip()})
 
-            if not any(message["role"] == "user" for message in normalized_messages):
+            if not any(msg["role"] == "user" for msg in normalized_messages):
                 raise ValueError(f"Line {line_number} has no user message.")
-
             if normalized_messages[-1]["role"] != "assistant":
                 raise ValueError(
                     f"Line {line_number} must end with an assistant response."
@@ -100,7 +92,6 @@ def validate_dataset(dataset_path: Path) -> list[dict[str, Any]]:
 
     if not records:
         raise ValueError(f"Training dataset is empty: {dataset_path}")
-
     return records
 
 
@@ -110,7 +101,6 @@ def split_by_chunk(
     seed: int,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Split by source chunk so paraphrases of one answer cannot leak across sets."""
-
     if not 0 <= validation_fraction < 1:
         raise ValueError("training.validation_split must be between 0 and 1.")
 
@@ -129,18 +119,16 @@ def split_by_chunk(
     train_records = []
     validation_records = []
     for group_name, group_records in groups.items():
-        destination = validation_records if group_name in validation_names else train_records
-        destination.extend(group_records)
+        dest = validation_records if group_name in validation_names else train_records
+        dest.extend(group_records)
 
     if not train_records:
         raise ValueError("The validation split left no training samples.")
-
     return train_records, validation_records
 
 
 def validate_config(config: dict[str, Any]) -> None:
     """Fail early when required training settings are absent or invalid."""
-
     required_sections = {"model", "paths", "training", "lora"}
     missing = sorted(required_sections - config.keys())
     if missing:
@@ -186,7 +174,6 @@ def parse_args() -> argparse.Namespace:
 
 def load_training_dependencies():
     """Import the GPU training stack only after cheap validation succeeds."""
-
     try:
         import torch
         from datasets import Dataset
@@ -213,6 +200,58 @@ def load_training_dependencies():
         "SFTConfig": SFTConfig,
         "SFTTrainer": SFTTrainer,
     }
+
+
+def upload_adapter_to_hub(
+    model,
+    tokenizer,
+    repo_id: str,
+    private: bool = False,
+) -> None:
+    """
+    Upload the trained Peft model and tokenizer to Hugging Face Hub.
+    Uses HUGGINGFACE_TOKEN from environment or logged-in session.
+    """
+    try:
+        from huggingface_hub import HfApi, create_repo
+    except ImportError:
+        print("⚠️ huggingface_hub not installed. Skipping upload.")
+        print("   Install with: pip install huggingface-hub")
+        return
+
+    if not repo_id:
+        print("⚠️ No adapter_repo_id in config – skipping upload.")
+        return
+
+    token = os.getenv("HUGGINGFACE_TOKEN")
+
+    # Create repo if it doesn't exist
+    try:
+        create_repo(repo_id, private=private, exist_ok=True, token=token)
+        print(f"✅ Repository '{repo_id}' is ready.")
+    except Exception as e:
+        print(f"⚠️ Could not create repo (might already exist): {e}")
+
+    # Save adapter + tokenizer to a temporary directory, then upload the whole folder
+    print(f"⬆️ Uploading adapter and tokenizer to {repo_id} ...")
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Save adapter and tokenizer
+            model.save_pretrained(tmpdir, safe_serialization=True)
+            tokenizer.save_pretrained(tmpdir)
+
+            # Upload the folder
+            api = HfApi()
+            api.upload_folder(
+                folder_path=tmpdir,
+                repo_id=repo_id,
+                token=token,
+                repo_type="model",
+            )
+        print(f"✅ Upload complete: https://huggingface.co/{repo_id}")
+    except Exception as e:
+        print(f"❌ Upload failed: {e}")
+        print("   Make sure you are logged in (huggingface-cli login) or set HUGGINGFACE_TOKEN.")
 
 
 def main() -> None:
@@ -362,6 +401,7 @@ def main() -> None:
 
     trainer.train(resume_from_checkpoint=resume_checkpoint)
 
+    # ---------- Save adapter locally ----------
     adapter_path.mkdir(parents=True, exist_ok=True)
     trainer.model.save_pretrained(adapter_path, safe_serialization=True)
     tokenizer.save_pretrained(adapter_path)
@@ -378,7 +418,17 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    print(f"Training complete. Adapter and tokenizer saved to: {adapter_path}")
+    print(f"✅ Training complete. Adapter saved locally to: {adapter_path}")
+
+    # ---------- AUTOMATIC UPLOAD TO HUB ----------
+    repo_id = config["model"].get("adapter_repo_id")
+    if repo_id:
+        print(f"\n🔄 Automatic upload to Hugging Face Hub enabled for: {repo_id}")
+        private = config.get("hub", {}).get("private", False)
+        upload_adapter_to_hub(trainer.model, tokenizer, repo_id, private)
+    else:
+        print("\n⚠️ No adapter_repo_id in config – skipping upload.")
+        print("   To enable automatic upload, set: model.adapter_repo_id = 'your-username/your-adapter'")
 
 
 if __name__ == "__main__":
