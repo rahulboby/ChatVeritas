@@ -21,7 +21,8 @@
   },
   "generation": {
     "max_new_tokens": 300,
-    "temperature": 0.3
+    "temperature": 0.3,
+    "model": "openai/gpt-oss-20b"
   },
   "inference": {
     "max_gpu_memory": "4GiB",

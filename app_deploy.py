@@ -94,7 +94,7 @@ def generate_response(question, retriever, config):
 
     try:
         completion = client.chat.completions.create(
-            model=config["generation"].get("model", "llama3-70b-8192"),  # Groq‑compatible default
+            model=config["generation"].get("model", "openai/gpt-oss-120b"),  # Groq‑compatible default
             messages=[
                 {
                     "role": "system",
@@ -124,7 +124,7 @@ def generate_response(question, retriever, config):
     return response.strip(), chunks, metrics
 
 # ---------- STREAMLIT UI ----------
-st.set_page_config(page_title="Qwen_RAG Chatbot", layout="wide")
+st.set_page_config(page_title="ChatVeritas", layout="wide", page_icon="💬")
 st.title("ChatVeritas: Fine-Tuned Two-Stage RAG Chatbot on Custom Dataset")
 
 st.info(
