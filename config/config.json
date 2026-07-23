@@ -20,7 +20,7 @@
     "faiss_candidates": 30
   },
   "generation": {
-    "max_new_tokens": 300,
+    "max_new_tokens": 2048,
     "temperature": 0.3,
     "model": "openai/gpt-oss-20b"
   },
