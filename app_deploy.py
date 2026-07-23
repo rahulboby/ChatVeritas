@@ -5,6 +5,15 @@ import textwrap
 import traceback
 from pathlib import Path
 
+from openai import OpenAI
+from dotenv import load_dotenv
+
+import faulthandler
+import streamlit as st
+
+from utils.config_loader import load_config
+from utils.retriever import Retriever
+
 # ========== THREADING LIMITS (prevent tqdm & BLAS threads from crashing) ==========
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -16,53 +25,22 @@ os.environ["TRANSFORMERS_VERBOSITY"] = "error"   # suppress HF warnings
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.append(str(PROJECT_ROOT))
+load_dotenv()
+if not os.getenv("GROQ_API_KEY"):
+    raise RuntimeError("GROQ_API_KEY not found in environment variables.")
 
-import faulthandler
-import torch
-from peft import PeftModel
-from transformers import AutoTokenizer, AutoModelForCausalLM, logging as hf_logging
-import streamlit as st
+client = OpenAI(
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1",
+)
 
-from utils.config_loader import load_config
-from utils.retriever import Retriever
-
-hf_logging.set_verbosity_error()
 faulthandler.enable(all_threads=True)
 
 # ---------- Load components with checkpoints ----------
 @st.cache_resource
 def load_components():
+
     config = load_config()
-
-    # ------------------- Use HF repo ID -------------------
-    adapter_repo_id = config["model"]["adapter_repo_id"]
-    use_lora = False   # or read from config, but set True if you always use adapter
-
-
-    # Tokenizer: load from adapter repo (which contains tokenizer files)
-    # If tokenizer files aren't there, fallback to base model
-    tokenizer = AutoTokenizer.from_pretrained(adapter_repo_id)
-
-    # ------------------- Base model -------------------
-    base_model = AutoModelForCausalLM.from_pretrained(
-        config["model"]["base_model"],   # still from config, e.g. "Qwen/Qwen-3B" -> The adapter is trained for a 3B model now.
-        dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-        device_map="auto",
-        max_memory={"cpu": "12GiB", 0: "4GiB"} if torch.cuda.is_available() else {"cpu": "12GiB"},
-        low_cpu_mem_usage=True,
-    )
-
-    # ------------------- Load LoRA from HF -------------------
-    if use_lora:
-        model = PeftModel.from_pretrained(base_model, adapter_repo_id)
-    else:
-        model = base_model
-
-    model.eval()
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    # ---------- 4. Load Retriever (after model) ----------
     retriever = Retriever(
         index_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "index.faiss",
         chunks_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "chunks.pkl",
@@ -74,14 +52,11 @@ def load_components():
         reranker_device=config["reranker"].get("device", "cpu"),
     )
 
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-
-    return model, tokenizer, retriever
+    return retriever
 
 
 # ---------- Generate with checkpoints ----------
-def generate_response(question, model, tokenizer, retriever):
+def generate_response(question, retriever):
     try:
         config = load_config()
     except Exception as e:
@@ -115,44 +90,66 @@ def generate_response(question, model, tokenizer, retriever):
         Answer:
     """).strip()
 
-    # ---- Chat template ----
-    messages = [{"role": "user", "content": prompt}]
-    text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    gen_start = time.perf_counter()
 
-    # ---- Tokenization ----
-    inputs = tokenizer(text, return_tensors="pt").to(model.device)
+    try:
+        completion = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are ChatVeritas, a document-grounded AI assistant. "
+                        "Answer only using the supplied context. "
+                        "If the answer is not present, clearly state that there "
+                        "is insufficient information."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+            temperature=config["generation"]["temperature"],
+            max_tokens=config["generation"]["max_new_tokens"],
+        )
+    except Exception as e:
+        raise RuntimeError(f"Groq API request failed: {e}")
 
-    # ---- Generation ----
-    with torch.inference_mode():
-        temperature = config["generation"]["temperature"]
-        generation_kwargs = {
-            "max_new_tokens": config["generation"]["max_new_tokens"],
-            "do_sample": temperature > 0,
-            "pad_token_id": tokenizer.pad_token_id,
-        }
-        if temperature > 0:
-            generation_kwargs["temperature"] = temperature
+    metrics["generation_time"] = (
+        time.perf_counter() - gen_start
+    )
 
-        gen_start = time.perf_counter()
-        outputs = model.generate(**inputs, **generation_kwargs)
-        metrics["generation_time"] = time.perf_counter() - gen_start
+    response = completion.choices[0].message.content
 
-    # ---- Decode ----
-    generated_tokens = outputs[0][inputs["input_ids"].shape[1]:]
-    response = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-    metrics["prompt_tokens"] = inputs["input_ids"].shape[1]
+    metrics["prompt_tokens"] = completion.usage.prompt_tokens
 
     return response.strip(), chunks, metrics
 
 
 # ---------- STREAMLIT UI ----------
 st.set_page_config(page_title="Qwen_RAG Chatbot", layout="wide")
-st.title("Qwen RAG Chatbot")
+st.title("ChatVeritas: Fine-Tuned Two-Stage RAG Chatbot on Custom Dataset")
+
+st.info(
+    """
+    **Deployment Notice**
+
+    This public deployment uses the **Groq API** for language model inference.
+
+    The original ChatVeritas research system includes a fine-tuned LoRA model.
+    That model is not included here because its size exceeds the limits of free
+    cloud deployment platforms.
+
+    The complete retrieval pipeline—including FAISS retrieval, reranking,
+    and context-grounded generation—remains unchanged.
+    """
+)
 
 
 # We catch any exception during loading and display it in the UI
 try:
-    model, tokenizer, retriever = load_components()
+    retriever = load_components()
 except Exception as e:
     st.error(f"Failed to load components: {e}")
     st.code(traceback.format_exc(), language="python")
@@ -175,7 +172,7 @@ if prompt := st.chat_input("Ask a question..."):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                response, chunks, metrics = generate_response(prompt, model, tokenizer, retriever)
+                response, chunks, metrics = generate_response(prompt, retriever)
             except Exception as e:
                 st.error(f"Error during generation: {e}")
                 st.code(traceback.format_exc(), language="python")

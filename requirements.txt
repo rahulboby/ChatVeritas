@@ -41,5 +41,7 @@ protobuf==6.33.6
 groq>=0.31.0
 python-dotenv>=1.1.0
 
-# Gradio chat
-gradio
+# Deployed api call app
+
+openai>=1.40.0
+python-dotenv
