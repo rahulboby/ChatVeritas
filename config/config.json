@@ -1,6 +1,6 @@
 {
   "model": {
-    "base_model": "Qwen/Qwen2.5-1.5B-Instruct",
+    "base_model": "Qwen/Qwen2.5-0.5B-Instruct",
     "adapter_repo_id": "rahulboby/chatveritas-lora-adapter",
     "adapter_path": "models/adapters",
     "use_lora": true
