@@ -63,6 +63,11 @@ st.info(
     """
 )
 
+st.link_button(
+    "View the ChatVeritas Architecture",
+    url = "architecture-chatveritas.streamlit.app"
+)
+
 # ---------- Load chatbot ----------
 try:
     chatbot = load_chatbot()
