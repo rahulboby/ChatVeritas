@@ -1,178 +1,48 @@
-import os
 import sys
-import time
-import textwrap
 import traceback
 from pathlib import Path
 
-# ========== THREADING LIMITS (prevent tqdm & BLAS threads from crashing) ==========
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["TQDM_DISABLE"] = "1"
-os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-
+# ---------------------------------------------------------------------------
+# sys.path must be extended before project imports so that Python can
+# resolve application modules when this file is run directly or via Streamlit.
+# ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent
-sys.path.append(str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# ---------------------------------------------------------------------------
+# Thread limits MUST be applied before any NumPy / BLAS / FAISS /
+# HuggingFace library is imported.  apply_thread_limits() only sets
+# os.environ and has no heavy dependencies of its own.
+# ---------------------------------------------------------------------------
+from core.constants import apply_thread_limits
+apply_thread_limits()
 
 import faulthandler
-import torch
 import streamlit as st
-from peft import PeftModel
-from transformers import AutoTokenizer, AutoModelForCausalLM, logging as hf_logging
 
-from utils.config_loader import load_config
-from utils.retriever import Retriever
+from core.config import load_config
+from core.logger import get_logger
+from interfaces.chatveritas import ChatVeritas
 
-hf_logging.set_verbosity_error()
 faulthandler.enable(all_threads=True)
+
+logger = get_logger(__name__)
 
 
 # ---------- Cached configuration ----------
 @st.cache_data
-def get_config():
+def get_config() -> dict:
     """Load and cache the application configuration."""
     return load_config()
 
 
-# ---------- Cached model loader (depends on `use_lora`) ----------
+# ---------- Cached chatbot (re-instantiated when use_lora changes) ----------
 @st.cache_resource
-def load_model_and_tokenizer(use_lora: bool):
-    """
-    Load the base model and optionally apply the LoRA adapter.
-    Returns: (model, tokenizer)
-    """
+def load_chatbot(use_lora: bool) -> ChatVeritas:
+    """Instantiate and cache the offline ChatVeritas chatbot."""
+    logger.info("Loading ChatVeritas offline chatbot (use_lora=%s).", use_lora)
     config = get_config()
-    base_model_name = config["model"]["base_model"]
-    adapter_repo_id = config["model"]["adapter_repo_id"]
-
-    # ---------- Load tokenizer ----------
-    # If using LoRA, try to load tokenizer from the adapter repo (it might contain custom tokens).
-    # Otherwise, fall back to the base model.
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(adapter_repo_id if use_lora else base_model_name)
-    except Exception:
-        # If adapter repo doesn't have tokenizer files, use base model's tokenizer.
-        tokenizer = AutoTokenizer.from_pretrained(base_model_name)
-
-    # ---------- Load base model ----------
-    dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-    device_map = "auto" if torch.cuda.is_available() else None
-    max_memory = {"cpu": "12GiB", 0: "4GiB"} if torch.cuda.is_available() else {"cpu": "12GiB"}
-
-    base_model = AutoModelForCausalLM.from_pretrained(
-        base_model_name,
-        torch_dtype=dtype,
-        device_map=device_map,
-        max_memory=max_memory,
-        low_cpu_mem_usage=True,
-    )
-
-    # ---------- Apply LoRA if requested ----------
-    if use_lora:
-        try:
-            model = PeftModel.from_pretrained(base_model, adapter_repo_id)
-        except Exception as e:
-            st.error(f"Failed to load LoRA adapter from `{adapter_repo_id}`: {e}")
-            st.warning("Falling back to the base model without LoRA.")
-            model = base_model
-    else:
-        model = base_model
-
-    model.eval()
-
-    # Ensure tokenizer has a padding token
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    # Clear GPU cache after loading
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-
-    return model, tokenizer
-
-
-# ---------- Cached retriever loader ----------
-@st.cache_resource
-def load_retriever():
-    """Load the FAISS index and chunks."""
-    config = get_config()
-    retriever = Retriever(
-        index_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "index.faiss",
-        chunks_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "chunks.pkl",
-        embedding_model=config["embedding"]["model"],
-        top_k=config["retrieval"]["top_k"],
-        faiss_candidates=config["retrieval"]["faiss_candidates"],
-        embedding_device=config["embedding"].get("device", "cpu"),
-        reranker_model=config["reranker"]["model"],
-        reranker_device=config["reranker"].get("device", "cpu"),
-    )
-    return retriever
-
-
-# ---------- Generation function ----------
-def generate_response(question, model, tokenizer, retriever):
-    """Retrieve context and generate an answer using the loaded model."""
-    config = get_config()  # re-use cached config
-
-    # ---- Retrieval ----
-    retrieval = retriever.retrieve(question)
-    chunks = retrieval["results"]
-    metrics = retrieval["metrics"]
-
-    context = "\n\n".join(item["chunk"] for item in chunks)
-
-    # ---- Build prompt ----
-    prompt = textwrap.dedent(f"""
-        You are an expert technical assistant answering questions about the provided documents.
-        Use the retrieved context as your PRIMARY source of information.
-        Guidelines:
-        1. Base your answer primarily on the provided context.
-        2. If the answer is explicitly stated in the context, answer confidently.
-        3. If the answer is not explicitly stated but can be reasonably inferred, clearly state it is an inference.
-        4. Only respond with "I don't have enough information in the provided documents." if the context is insufficient.
-        5. Never invent facts.
-
-        Context:
-        {context}
-
-        Question:
-        {question}
-
-        Answer:
-    """).strip()
-
-    # ---- Apply chat template ----
-    messages = [{"role": "user", "content": prompt}]
-    text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-
-    # ---- Tokenization ----
-    inputs = tokenizer(text, return_tensors="pt").to(model.device)
-
-    # ---- Generation settings ----
-    temperature = config["generation"]["temperature"]
-    generation_kwargs = {
-        "max_new_tokens": config["generation"]["max_new_tokens"],
-        "do_sample": temperature > 0,
-        "pad_token_id": tokenizer.pad_token_id,
-    }
-    if temperature > 0:
-        generation_kwargs["temperature"] = temperature
-
-    # ---- Generation ----
-    with torch.inference_mode():
-        gen_start = time.perf_counter()
-        outputs = model.generate(**inputs, **generation_kwargs)
-        metrics["generation_time"] = time.perf_counter() - gen_start
-
-    # ---- Decode only the new tokens ----
-    generated_tokens = outputs[0][inputs["input_ids"].shape[1]:]
-    response = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-    metrics["prompt_tokens"] = inputs["input_ids"].shape[1]
-
-    return response.strip(), chunks, metrics
+    return ChatVeritas(mode="offline", use_lora=use_lora, config=config)
 
 
 # ---------- STREAMLIT UI ----------
@@ -188,23 +58,19 @@ with st.sidebar:
         help="Uncheck to use the base model without fine-tuning."
     )
     if use_lora:
-        st.info("LoRA adapter will be loaded from the Hugging Face repo specified in `config.yaml`.")
+        st.info("LoRA adapter will be loaded from the Hugging Face repo specified in `config.json`.")
     else:
         st.info("Using the base model only.")
 
-    # Optional: display current model names from config
     config = get_config()
     st.caption(f"Base model: `{config['model']['base_model']}`")
     st.caption(f"Adapter repo: `{config['model']['adapter_repo_id']}`")
 
-# ---------- Load components ----------
+# ---------- Load chatbot ----------
 try:
-    # Load retriever (independent of LoRA setting)
-    retriever = load_retriever()
-    # Load model + tokenizer – cache is keyed by `use_lora`, so it reloads when the checkbox changes.
-    model, tokenizer = load_model_and_tokenizer(use_lora)
+    chatbot = load_chatbot(use_lora)
 except Exception as e:
-    st.error(f"Failed to load components: {e}")
+    st.error(f"Failed to load ChatVeritas: {e}")
     st.code(traceback.format_exc(), language="python")
     st.stop()
 
@@ -225,8 +91,12 @@ if prompt := st.chat_input("Ask a question..."):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                response, chunks, metrics = generate_response(prompt, model, tokenizer, retriever)
+                result = chatbot.ask(prompt)
+                response = result["response"]
+                chunks = result["chunks"]
+                metrics = result["metrics"]
             except Exception as e:
+                logger.error("Error during generation: %s", e, exc_info=True)
                 st.error(f"Error during generation: {e}")
                 st.code(traceback.format_exc(), language="python")
                 st.stop()
@@ -270,5 +140,4 @@ if prompt := st.chat_input("Ask a question..."):
             else:
                 st.write("No sources available.")
 
-    # Append assistant's message to chat history
     st.session_state.messages.append({"role": "assistant", "content": response})

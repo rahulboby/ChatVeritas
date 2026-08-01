@@ -87,6 +87,3 @@ models/checkpoints/
 *.tmp
 *.bak
 *.swp
-
-# INSTRUCTIONS
-instructions.md

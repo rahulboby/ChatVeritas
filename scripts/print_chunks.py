@@ -5,7 +5,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
-from utils.config_loader import load_config
+from core.config import load_config
 
 """
     Prints all the chunks frorm the chunks.pkl file in a readable format.

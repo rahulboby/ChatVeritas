@@ -1,127 +1,48 @@
-import os
 import sys
-import time
-import textwrap
 import traceback
 from pathlib import Path
 
-# ---- Set project root and adjust sys.path BEFORE importing project modules ----
+# ---------------------------------------------------------------------------
+# sys.path must be extended before any project imports.
+# ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent
-sys.path.append(str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT))
 
-# ---- Third-party imports ----
+# ---------------------------------------------------------------------------
+# Thread limits before any heavy library imports.
+# ---------------------------------------------------------------------------
+from core.constants import apply_thread_limits
+apply_thread_limits()
+
 import faulthandler
 import streamlit as st
-from openai import OpenAI
 from dotenv import load_dotenv
 
-# ---- Project imports ----
-from utils.config_loader import load_config
-from utils.retriever import Retriever
-
-# ========== THREADING LIMITS (prevent tqdm & BLAS threads from crashing) ==========
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["TQDM_DISABLE"] = "1"          # kill tqdm monitor thread
-os.environ["TRANSFORMERS_VERBOSITY"] = "error"   # suppress HF warnings
-
-load_dotenv()
-if not os.getenv("GROQ_API_KEY"):
-    raise RuntimeError("GROQ_API_KEY not found in environment variables.")
-
-client = OpenAI(
-    api_key=os.getenv("GROQ_API_KEY"),
-    base_url="https://api.groq.com/openai/v1",
-)
+from core.config import load_config
+from core.logger import get_logger
+from interfaces.chatveritas import ChatVeritas
 
 faulthandler.enable(all_threads=True)
+load_dotenv()
 
-# ---------- Cache config loader ----------
+logger = get_logger(__name__)
+
+
+# ---------- Cached configuration ----------
 @st.cache_data
-def get_config():
-    """Load and cache the configuration."""
+def get_config() -> dict:
+    """Load and cache the application configuration."""
     return load_config()
 
-# ---------- Load components with checkpoints ----------
+
+# ---------- Cached chatbot ----------
 @st.cache_resource
-def load_components(config):
-    retriever = Retriever(
-        index_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "index.faiss",
-        chunks_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "chunks.pkl",
-        embedding_model=config["embedding"]["model"],
-        top_k=config["retrieval"]["top_k"],
-        faiss_candidates=config["retrieval"]["faiss_candidates"],
-        embedding_device=config["embedding"].get("device", "cpu"),
-        reranker_model=config["reranker"]["model"],
-        reranker_device=config["reranker"].get("device", "cpu"),
-    )
-    return retriever
+def load_chatbot() -> ChatVeritas:
+    """Instantiate and cache the deploy ChatVeritas chatbot."""
+    logger.info("Loading ChatVeritas deploy chatbot.")
+    config = get_config()
+    return ChatVeritas(mode="deploy", config=config)
 
-# ---------- Generate with checkpoints ----------
-def generate_response(question, retriever, config):
-    # ---- Retrieval ----
-    retrieval = retriever.retrieve(question)
-    chunks = retrieval["results"]
-    metrics = retrieval["metrics"]
-
-    # Build context, even if empty
-    context = "\n\n".join(item["chunk"] for item in chunks)
-
-    # ---- Build prompt ----
-    prompt = textwrap.dedent(f"""
-        You are an expert technical assistant answering questions about the provided documents.
-        Use the retrieved context as your PRIMARY source of information.
-        Guidelines:
-        1. Base your answer primarily on the provided context.
-        2. If the answer is explicitly stated in the context, answer confidently.
-        3. If the answer is not explicitly stated but can be reasonably inferred, clearly state it is an inference.
-        4. Only respond with "I don't have enough information in the provided documents." if the context is insufficient.
-        5. Never invent facts.
-
-        Context:
-        {context}
-
-        Question:
-        {question}
-
-        Answer:
-    """).strip()
-
-    gen_start = time.perf_counter()
-
-    try:
-        completion = client.chat.completions.create(
-            model=config["generation"].get("model", "openai/gpt-oss-120b"),  # Groq‑compatible default
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are ChatVeritas, a document-grounded AI assistant. "
-                        "Answer only using the supplied context. "
-                        "If the answer is not present, clearly state that there "
-                        "is insufficient information."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
-            temperature=config["generation"]["temperature"],
-            max_tokens=config["generation"]["max_new_tokens"],
-        )
-    except Exception as e:
-        # Re‑raise with a user‑friendly message; the outer handler will display it.
-        raise RuntimeError(f"Groq API request failed: {e}")
-
-    metrics["generation_time"] = time.perf_counter() - gen_start
-    response = completion.choices[0].message.content
-    metrics["prompt_tokens"] = completion.usage.prompt_tokens
-
-    return response.strip(), chunks, metrics
 
 # ---------- STREAMLIT UI ----------
 st.set_page_config(page_title="ChatVeritas", layout="wide", page_icon="💬")
@@ -133,25 +54,24 @@ st.info(
 
     This public deployment uses the **Groq API** for language model inference.
 
-    The original ChatVeritas research system includes a fine-tuned LoRA model.
-    That model is not included here because its size exceeds the limits of free
-    cloud deployment platforms.
+    The original ChatVeritas research system includes a Qwen2.5 (3B) model fine tuned with LoRA.
+    That model is not included here because its size exceeds the limits of free cloud deployment platforms.
 
-    The complete retrieval pipeline—including FAISS retrieval, reranking,
-    and context-grounded generation—remains unchanged.
+    The complete retrieval pipeline—including FAISS retrieval, reranking, and context-grounded generation—remains unchanged.
+
+    ChatVeritas is currently fine-tuned on the research paper and project report of dataveritas. Any questions about DataVeritas would be answered efficiently. The model would not answer anything other than the scope of the data given to it.
     """
 )
 
-# Load config and components
+# ---------- Load chatbot ----------
 try:
-    config = get_config()
-    retriever = load_components(config)
+    chatbot = load_chatbot()
 except Exception as e:
-    st.error(f"Failed to load components: {e}")
+    st.error(f"Failed to load ChatVeritas: {e}")
     st.code(traceback.format_exc(), language="python")
     st.stop()
 
-# Chat state
+# ---------- Chat state ----------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -159,6 +79,7 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
+# ---------- User input ----------
 if prompt := st.chat_input("Ask a question..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -167,17 +88,20 @@ if prompt := st.chat_input("Ask a question..."):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                response, chunks, metrics = generate_response(prompt, retriever, config)
+                result = chatbot.ask(prompt)
+                response = result["response"]
+                chunks = result["chunks"]
+                metrics = result["metrics"]
             except Exception as e:
+                logger.error("Error during generation: %s", e, exc_info=True)
                 st.error(f"Error during generation: {e}")
-                # Optionally show full traceback in an expander for debugging
                 with st.expander("Technical details"):
                     st.code(traceback.format_exc(), language="python")
                 st.stop()
 
         st.markdown(response)
 
-        # ---- Metrics and context expanders (with safe access) ----
+        # ---- Metrics and context expanders ----
         with st.expander("RAG Metrics"):
             col1, col2, col3 = st.columns(3)
             with col1:

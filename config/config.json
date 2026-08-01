@@ -16,10 +16,10 @@
   },
 
   "retrieval": {
-    "top_k": 5,
+    "top_k": 8,
     "chunk_size": 1000,
     "chunk_overlap": 80,
-    "faiss_candidates": 30
+    "faiss_candidates": 32
   },
 
   "generation": {
@@ -51,10 +51,10 @@
   },
 
   "training": {
-    "epochs": 3,
+    "epochs": 4,
     "batch_size": 2,
     "gradient_accumulation": 8,
-    "learning_rate": 0.0002,
+    "learning_rate": 0.0001,
     "max_sequence_length": 2048
   },
 

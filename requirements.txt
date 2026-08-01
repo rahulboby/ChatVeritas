@@ -38,6 +38,7 @@ numpy
 tqdm
 packaging
 langchain_text_splitters
+langchain-core>=1.4,<2
 
 # Tokenizer Support
 

@@ -22,7 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
 from utils.cache import CacheManager
-from utils.config_loader import load_config
+from core.config import load_config
 from utils.question_generator import QuestionGenerator
 
 
