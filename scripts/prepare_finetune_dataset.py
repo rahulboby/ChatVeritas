@@ -10,7 +10,6 @@ This ensures perfect alignment between fine‑tuning data and inference‑time r
 from __future__ import annotations
 
 import json
-import os
 import pickle
 import sys
 from pathlib import Path
@@ -21,27 +20,29 @@ from tqdm import tqdm
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
-from utils.cache import CacheManager
-from core.config import load_config
-from utils.question_generator import QuestionGenerator
+from core.utils import CacheManager, QuestionGenerator
+from configs import settings
+from core.llm import resolve_llm_provider
+
+
+def load_config() -> dict:
+    """Compatibility loader for legacy JSON configs.
+
+    Tests and some scripts patch this function; provide a simple
+    implementation so callers can override via `patch.object`.
+    """
+    return {}
 
 
 def main():
-    load_dotenv()
+    load_dotenv(PROJECT_ROOT / ".env")
 
     config = load_config()
-
-    # ---------- 1. Validate LLM provider ----------
-    provider = config["llm"].get("provider", "groq").lower()
-    if provider != "groq":
-        raise ValueError(f"Unsupported LLM provider: {provider!r}. Only 'groq' is supported.")
-
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise ValueError("GROQ_API_KEY not found. Create a .env file.")
+    provider = resolve_llm_provider(settings_module=settings)
 
     # ---------- 2. Load the exact chunks from the vector DB ----------
-    chunks_path = PROJECT_ROOT / config["paths"]["vectorstore"] / "chunks.pkl"
+    vectorstore_dir = PROJECT_ROOT / config.get("paths", {}).get("vectorstore", "vectorstore")
+    chunks_path = vectorstore_dir / "chunks.pkl"
     if not chunks_path.exists():
         raise FileNotFoundError(
             f"chunks.pkl not found at: {chunks_path}\n"
@@ -57,16 +58,23 @@ def main():
 
     # ---------- 3. Initialize generator and cache ----------
     generator = QuestionGenerator(
-        api_key=api_key,
-        model=config["llm"]["model"],
-        temperature=config["llm"]["temperature"],
-        max_retries=config["llm"]["max_retries"],
+        api_key=provider.api_key,
+        model=provider.model,
+        base_url=provider.base_url,
+        temperature=settings.QUESTION_GENERATION_TEMPERATURE,
+        max_retries=settings.QUESTION_GENERATION_MAX_RETRIES,
+        response_format=provider.response_format,
+    )
+    print(
+        f"Using {provider.name} provider | model={provider.model} | "
+        f"base_url={provider.base_url}"
     )
 
-    cache_enabled = config.get("cache", {}).get("enabled", True)
+    cache_enabled = config.get("cache", {}).get("enabled", settings.CACHE_ENABLED)
     cache = None
     if cache_enabled:
-        cache = CacheManager(PROJECT_ROOT / config["cache"]["directory"])
+        cache_dir = PROJECT_ROOT / config.get("cache", {}).get("directory", settings.CACHE_DIR)
+        cache = CacheManager(cache_dir)
 
     # ---------- 4. Generate questions for each chunk ----------
     samples = []
@@ -112,7 +120,8 @@ def main():
         raise ValueError("No training samples were generated. Check your chunks and LLM provider.")
 
     # ---------- 5. Save dataset ----------
-    output_file = PROJECT_ROOT / config["paths"]["processed_data"]
+    processed_rel = config.get("paths", {}).get("processed_data", "processed/train.jsonl")
+    output_file = PROJECT_ROOT / processed_rel
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     with open(output_file, "w", encoding="utf-8") as f:

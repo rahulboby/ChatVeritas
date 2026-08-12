@@ -1,55 +1,33 @@
-# ChatVeritas
+﻿# ChatVeritas
 
-ChatVeritas is a document-grounded AI assistant for answering questions over a
-private collection of text documents. It combines a custom two-stage retrieval
-system with either a local Qwen model and optional LoRA adapter or a Groq-backed
-deployment mode.
+ChatVeritas is a document-grounded RAG assistant for local knowledge. It uses
+local retrieval over a private text corpus and only sends generation to the
+selected backend when needed.
 
-The project keeps knowledge outside the language model. Documents are embedded
-and indexed locally, relevant passages are retrieved and reranked for each
-question, and the selected LLM receives that context in a constrained RAG
-prompt. This gives the application a clear separation between document
-knowledge, retrieval quality, and text generation.
+The application separates retrieval and generation:
 
-## Features
+- **Retrieval** is always local: question embedding, FAISS search, and
+  cross-encoder reranking.
+- **Generation** can be:
+  - a local Hugging Face model with optional PEFT LoRA adapter,
+  - LM Studio local OpenAI-compatible generation,
+  - or Groq cloud generation.
 
-- Retrieval-Augmented Generation (RAG) over local text documents
-- Sentence Transformer embeddings and FAISS `IndexFlatL2` vector search
-- Cross-encoder reranking before context assembly
-- Local Qwen 2.5 inference with optional PEFT LoRA adapter loading
-- Groq-backed deployment mode using the same retrieval pipeline
-- Streamlit interfaces for offline and deployment modes
-- Interactive terminal chat for local inference
-- LCEL orchestration that preserves the project's custom retrieval and model logic
+## Key features
 
-## Project Architecture
+- Streamlit multipage UI with Offline Chat, Cloud Chat, and Architecture pages
+- Local FAISS retrieval and reranking for grounded answers
+- Local model inference with optional PEFT LoRA adapters
+- LM Studio local server support for OpenAI-compatible offline generation
+- Groq cloud generation for lightweight production experimentation
+- Fresh Load sidebar support for clearing cached models and reloading backend
+- Utilities for corpus ingestion, chunk inspection, synthetic dataset creation,
+  and QLoRA training
+- Centralized settings in `configs/settings.py`
 
-```text
-Question
-  -> Query embedding
-  -> FAISS candidate search
-  -> Cross-encoder reranking
-  -> Context-grounded prompt
-  -> Local Qwen + LoRA or Groq
-  -> Response, sources, and timing metrics
-```
+## Quick start
 
-The retrieval strategy, reranker, prompt wording, and model-loading behavior
-remain explicit project components. LangChain Core provides orchestration and
-prompt-rendering primitives rather than a replacement RAG stack.
-
-## Technologies Used
-
-- Python, PyTorch, Transformers, and PEFT
-- Sentence Transformers and FAISS
-- LangChain Core (LCEL, `PromptTemplate`, and output parsing)
-- Streamlit
-- Groq and the OpenAI-compatible client
-- TRL, Datasets, and BitsAndBytes for QLoRA fine-tuning
-
-## Quick Start
-
-### Installation
+### Install
 
 ```powershell
 git clone <repository-url>
@@ -57,58 +35,106 @@ cd ChatVeritas
 python -m pip install -r requirements.txt
 ```
 
-Create a `.env` file with `GROQ_API_KEY` before using deployment mode.
+### Configure
 
-### Run Offline Streamlit
+All runtime settings live in `configs/settings.py`. Use it to adjust:
 
-```powershell
-streamlit run app_offline.py
-```
+- data, cache, and model paths
+- local and LM Studio generation settings
+- Groq model and API key settings
+- retrieval, embedding, and reranking parameters
+- synthetic question generation and fine-tuning settings
 
-Choose whether to load the LoRA adapter from the sidebar.
+Use `.env` for secrets. Cloud Chat requires `GROQ_API_KEY`. LM Studio can use
+an optional `LMSTUDIO_API_KEY` when the local server requires auth.
 
-### Run Deploy Streamlit
-
-```powershell
-streamlit run app_deploy.py
-```
-
-This mode keeps the same retrieval and reranking pipeline but sends generation
-requests to Groq.
-
-### Run Terminal Chat
+### Run
 
 ```powershell
-python scripts/chat.py
+streamlit run app.py
 ```
 
-## Repository Structure
+Then use the sidebar to open:
+
+- **Offline Chat** for Local Model or LM Studio
+- **Cloud Chat** for Groq generation
+- **Architecture** for the built-in architecture reference
+
+## Corpus and retrieval
+
+Add UTF-8 `.txt` files to `data/raw/` and build the vector store with:
+
+```powershell
+python scripts/ingest.py
+```
+
+The app uses generated artifacts from `data/vectorstore/` at runtime.
+Re-run ingestion only when the corpus changes.
+
+The architecture reference file
+`data/raw/chatveritas_architecture.txt` is part of the searchable corpus.
+If you update it and want the new content to be retrievable, run
+`python scripts/ingest.py` again.
+
+## Fresh Load behavior
+
+The Streamlit pages include a sidebar `Fresh Load` action that clears cached
+model resources and reloads the selected backend. Use it when you change the
+model, adapter, LM Studio server, or local runtime state.
+
+## Useful commands
+
+```powershell
+# Inspect indexed chunks
+python scripts/print_chunks.py
+
+# Build synthetic fine-tuning data
+python scripts/prepare_finetune_dataset.py
+
+# Validate fine-tuning dataset
+python scripts/fine_tune.py --validate-only
+
+# Train a QLoRA adapter
+python scripts/fine_tune.py
+```
+
+## Repository structure
 
 ```text
 ChatVeritas/
-├── app_offline.py       # Local Streamlit entry point
-├── app_deploy.py        # Groq Streamlit entry point
-├── config/              # Application configuration
-├── core/                # Configuration, logging, exceptions, runtime setup
-├── data/                # Source data and generated runtime artifacts
-├── interfaces/          # Stable ChatVeritas application facade
-├── llm/                 # Local and deployment generation backends
-├── models/              # LoRA adapters and training checkpoints
-├── pipelines/           # LCEL runtime orchestration
-├── prompts/             # Context-grounded RAG prompt
-├── retrieval/           # Embedding, FAISS, and reranking implementation
-├── scripts/             # Ingestion, training, chat, and maintenance commands
-├── tests/               # Unit and orchestration-contract tests
-└── utils/               # Fine-tuning dataset utilities
+|-- app.py
+|-- configs/
+|   |-- __init__.py
+|   '-- settings.py
+|-- core/
+|   |-- chatveritas.py
+|   |-- constants.py
+|   |-- exceptions.py
+|   |-- llm.py
+|   |-- logger.py
+|   |-- pipelines.py
+|   |-- prompts.py
+|   |-- retrieval.py
+|   '-- utils.py
+|-- pages/
+|   |-- 1_Offline_Chat.py
+|   |-- 2_Cloud_Chat.py
+|   '-- 3_Architecture.py
+|-- data/
+|   |-- raw/
+|   |-- vectorstore/
+|   |-- processed/
+|   '-- cache/
+|-- models/
+|   |-- adapters/
+|   '-- checkpoints/
+|-- scripts/
+|-- tests/
+'-- requirements.txt
 ```
 
-## Documentation
-
-Read [ARCHITECTURE.md](ARCHITECTURE.md) for the complete technical
-specification: module contracts, runtime and data pipelines, configuration,
-fine-tuning, LangChain integration, engineering decisions, and developer
-extension guidance. It is intended for developers who need to understand or
-maintain the entire system.
+For full architecture and design details, see
+[ChatVeritas_ARCHITECTURE.md](ChatVeritas_ARCHITECTURE.md).
 
 ## License
 

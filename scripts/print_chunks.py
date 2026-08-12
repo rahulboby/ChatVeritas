@@ -1,25 +1,16 @@
-import sys
 import pickle
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.append(str(PROJECT_ROOT))
+from configs import settings
 
-from core.config import load_config
 
-"""
-    Prints all the chunks frorm the chunks.pkl file in a readable format.
-"""
+"""Print all chunks from the configured `chunks.pkl` file in a readable format."""
+
 
 def main():
-
-    config = load_config()
-
-    chunks_path = (
-        PROJECT_ROOT /
-        config["paths"]["vectorstore"] /
-        "chunks.pkl"
-    )
+    chunks_path: Path = settings.CHUNKS_PATH
+    if not chunks_path.is_file():
+        raise FileNotFoundError(f"Chunks file not found: {chunks_path}")
 
     with open(chunks_path, "rb") as f:
         chunks = pickle.load(f)
@@ -29,12 +20,11 @@ def main():
     print("=" * 100)
 
     for chunk in chunks:
-
-        print(f"Chunk ID : {chunk['chunk_id']}")
-        print(f"Source   : {chunk['source']}")
-        print(f"Length   : {len(chunk['chunk'])} characters")
+        print(f"Chunk ID : {chunk.get('chunk_id', 'N/A')}")
+        print(f"Source   : {chunk.get('source', 'Unknown')}")
+        print(f"Length   : {len(chunk.get('chunk',''))} characters")
         print("-" * 100)
-        print(chunk["chunk"])
+        print(chunk.get("chunk", ""))
         print("=" * 100)
         print()
 

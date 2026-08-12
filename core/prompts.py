@@ -1,9 +1,7 @@
-"""Prompt templates and builders for the ChatVeritas RAG pipeline."""
+"""Prompt templates owned by the ChatVeritas RAG pipeline."""
 
 from langchain_core.prompts import PromptTemplate
 
-# The wording is intentionally unchanged. PromptTemplate replaces only the
-# former hand-written string-formatting implementation.
 _RAG_PROMPT_TEXT = """You are an expert technical assistant answering questions about the provided documents.
 Use the retrieved context as your PRIMARY source of information.
 Guidelines:
@@ -26,5 +24,5 @@ RAG_PROMPT_TEMPLATE = PromptTemplate.from_template(_RAG_PROMPT_TEXT)
 
 
 def build_rag_prompt(question: str, context: str) -> str:
-    """Render the unchanged RAG prompt with LangChain's PromptTemplate."""
+    """Render the standard document-grounded RAG prompt."""
     return RAG_PROMPT_TEMPLATE.format(context=context, question=question)

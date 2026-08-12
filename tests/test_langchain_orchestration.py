@@ -7,11 +7,9 @@ or external API is required.
 import unittest
 from unittest.mock import patch
 
-from llm.base import BaseLLM
-from pipelines.deploy_pipeline import DeployPipeline
-from pipelines.offline_pipeline import OfflinePipeline
-from pipelines.rag_pipeline import RAGPipeline
-from prompts.templates import RAG_PROMPT_TEMPLATE, build_rag_prompt
+from core.llm import BaseLLM
+from core.pipelines import DeployPipeline, OfflinePipeline, RAGPipeline
+from core.prompts import RAG_PROMPT_TEMPLATE, build_rag_prompt
 
 
 class FakeRetriever:

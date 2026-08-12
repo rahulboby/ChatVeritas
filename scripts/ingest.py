@@ -1,21 +1,21 @@
 import sys
-from pathlib import Path
 import pickle
 import re
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from core.constants import apply_thread_limits
+
+apply_thread_limits()
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
-# from langchain.text_splitter import RecursiveCharacterTextSplitter # If you have the full langchain ecosystem
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from sentence_transformers import SentenceTransformer
 
-# ---- Project setup ----
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.append(str(PROJECT_ROOT))
-
-from core.config import load_config
-
-config = load_config()
+from configs import settings
 
 
 def clean_text(text):
@@ -26,18 +26,22 @@ def clean_text(text):
 
 
 def main():
-    raw_dir = PROJECT_ROOT / config["paths"]["raw_data"]
-    vectorstore_dir = PROJECT_ROOT / config["paths"]["vectorstore"]
+    raw_dir = settings.RAW_DATA_DIR
+    vectorstore_dir = settings.VECTOR_STORE_DIR
+    if not raw_dir.is_dir():
+        raise FileNotFoundError(f"Raw document directory not found: {raw_dir}")
     vectorstore_dir.mkdir(parents=True, exist_ok=True)
 
     # ---- 1. Load embedding model ----
     print("Loading embedding model...")
-    embedder = SentenceTransformer(config["embedding"]["model"])
+    embedder = SentenceTransformer(
+        settings.EMBEDDING_MODEL_ID, device=settings.EMBEDDING_DEVICE
+    )
 
     # ---- 2. Set up the text splitter (character‑based) ----
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=config["retrieval"]["chunk_size"],       # characters, e.g., 1000
-        chunk_overlap=config["retrieval"]["chunk_overlap"], # characters, e.g., 80
+        chunk_size=settings.RETRIEVAL_CHUNK_SIZE,
+        chunk_overlap=settings.RETRIEVAL_CHUNK_OVERLAP,
         separators=["\n\n", "\n", ". ", " ", ""],           # prefer sentence/paragraph breaks
         length_function=len,
     )
@@ -45,7 +49,7 @@ def main():
     # ---- 3. Process all .txt files ----
     all_chunks = []
     chunk_id = 0
-    txt_files = list(raw_dir.glob("*.txt"))
+    txt_files = sorted(raw_dir.glob("*.txt"))
     print(f"Found {len(txt_files)} files")
 
     for file in txt_files:
@@ -57,6 +61,8 @@ def main():
         chunks = splitter.split_text(text)
 
         for chunk in chunks:
+            if not chunk.strip():
+                continue
             all_chunks.append({
                 "chunk_id": chunk_id,
                 "source": file.name,
@@ -65,6 +71,10 @@ def main():
             chunk_id += 1
 
     print(f"Created {len(all_chunks)} chunks")
+    if not all_chunks:
+        raise ValueError(
+            f"No usable text chunks were found in {raw_dir}. Add non-empty .txt files first."
+        )
 
     # ---- 4. Generate embeddings ----
     print("Generating embeddings...")
@@ -73,7 +83,6 @@ def main():
         texts,
         convert_to_numpy=True,
         show_progress_bar=True,
-        device=config["embedding"].get("device", "cpu")
     )
     embeddings = embeddings.astype(np.float32)
 
