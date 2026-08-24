@@ -136,6 +136,9 @@ ChatVeritas/
 For full architecture and design details, see
 [ChatVeritas_ARCHITECTURE.md](ChatVeritas_ARCHITECTURE.md).
 
+For a page-by-page explanation of Streamlit execution and model loading, see
+[STREAMLIT_PAGES_EXPLANATION.md](STREAMLIT_PAGES_EXPLANATION.md).
+
 ## License
 
 Distributed under the [MIT License](LICENSE).

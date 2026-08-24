@@ -92,10 +92,12 @@ GROQ_API_KEY_ENV = "GROQ_API_KEY"
 # LMSTUDIO_MODEL_ID before starting Streamlit.  The placeholder intentionally
 # fails with a helpful message rather than sending a malformed request.
 LMSTUDIO_MODEL_ID = _environment_or_default(
-    "LMSTUDIO_MODEL_ID", "google/gemma-4-e4b"
+    # "LMSTUDIO_MODEL_ID", "google/gemma-4-e4b" # This is for LM Studio model
+    "LMSTUDIO_MODEL_ID", "qwen3:14b" # This is for Ollama model
 )
 LMSTUDIO_BASE_URL = _environment_or_default(
-    "LMSTUDIO_BASE_URL", "http://localhost:1234/v1"
+    # "LMSTUDIO_BASE_URL", "http://localhost:1234/v1" # For LM Studio model
+    "LMSTUDIO_BASE_URL", "http://localhost:11434/v1" # For Ollama model
 )
 LMSTUDIO_API_KEY_ENV = "LMSTUDIO_API_KEY"
 LMSTUDIO_DEFAULT_API_KEY = "lm-studio"
