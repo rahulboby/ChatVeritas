@@ -39,8 +39,8 @@ os.environ["TQDM_DISABLE"] = "1"          # kill tqdm monitor thread
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"   # suppress HF warnings
 
 load_dotenv()
-if not os.getenv("API_KEY") and not os.getenv("GROQ_API_KEY"):
-    raise RuntimeError("Neither API_KEY nor GROQ_API_KEY found in environment variables.")
+if not os.getenv("GROQ_API_KEY"):
+    raise RuntimeError("GROQ_API_KEY not found in environment variables.")
 
 faulthandler.enable(all_threads=True)
 
@@ -52,7 +52,7 @@ def get_config():
 
 config = get_config()
 client = OpenAI(
-    api_key=os.getenv("API_KEY") or os.getenv("GROQ_API_KEY"),
+    api_key=os.getenv("GROQ_API_KEY"),
     base_url=config["llm"].get("url", "https://api.groq.com/openai/v1")
 )
 provider = config["llm"].get("provider", "no-provider-specified")
