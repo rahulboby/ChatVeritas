@@ -1,3 +1,13 @@
+"""
+app_deploy.py - ChatVeritas: Fine-Tuned Two-Stage RAG Chatbot
+
+This Streamlit app implements a document-grounded question-answering system.
+It retrieves relevant chunks from a FAISS index, reranks them with a cross-encoder,
+and generates an answer using the API (with streaming support).
+
+The retrieval pipeline uses a fine-tuned embedding model and a reranker.
+The generation step streams output token by token for a responsive UX.
+"""
 import os
 import sys
 import time
@@ -29,13 +39,8 @@ os.environ["TQDM_DISABLE"] = "1"          # kill tqdm monitor thread
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"   # suppress HF warnings
 
 load_dotenv()
-if not os.getenv("GROQ_API_KEY"):
-    raise RuntimeError("GROQ_API_KEY not found in environment variables.")
-
-client = OpenAI(
-    api_key=os.getenv("GROQ_API_KEY"),
-    base_url="https://api.groq.com/openai/v1",
-)
+if not os.getenv("API_KEY") and not os.getenv("GROQ_API_KEY"):
+    raise RuntimeError("Neither API_KEY nor GROQ_API_KEY found in environment variables.")
 
 faulthandler.enable(all_threads=True)
 
@@ -44,6 +49,13 @@ faulthandler.enable(all_threads=True)
 def get_config():
     """Load and cache the configuration."""
     return load_config()
+
+config = get_config()
+client = OpenAI(
+    api_key=os.getenv("API_KEY") or os.getenv("GROQ_API_KEY"),
+    base_url=config["llm"].get("url", "https://api.groq.com/openai/v1")
+)
+provider = config["llm"].get("provider", "no-provider-specified")
 
 # ---------- Load components with checkpoints ----------
 @st.cache_resource
@@ -60,14 +72,19 @@ def load_components(config):
     )
     return retriever
 
-# ---------- Generate with checkpoints ----------
-def generate_response(question, retriever, config):
+# ---------- Streaming generator ----------
+def generate_response_stream(question, retriever, config):
+    """
+    Generator that yields tokens from the API while also building the full response.
+    After streaming completes, it stores the final response, chunks, and metrics
+    in st.session_state['_stream_result'].
+    """
     # ---- Retrieval ----
     retrieval = retriever.retrieve(question)
     chunks = retrieval["results"]
     metrics = retrieval["metrics"]
 
-    # Build context, even if empty
+    # Build context
     context = "\n\n".join(item["chunk"] for item in chunks)
 
     # ---- Build prompt ----
@@ -93,8 +110,8 @@ def generate_response(question, retriever, config):
     gen_start = time.perf_counter()
 
     try:
-        completion = client.chat.completions.create(
-            model=config["generation"].get("model", "openai/gpt-oss-120b"),  # Groq‑compatible default
+        stream = client.chat.completions.create(
+            model=config["llm"].get("model", "no-model-specified"),
             messages=[
                 {
                     "role": "system",
@@ -112,16 +129,41 @@ def generate_response(question, retriever, config):
             ],
             temperature=config["generation"]["temperature"],
             max_tokens=config["generation"]["max_new_tokens"],
+            stream=True,   # <-- enable streaming
         )
     except Exception as e:
-        # Re‑raise with a user‑friendly message; the outer handler will display it.
-        raise RuntimeError(f"Groq API request failed: {e}")
+        raise RuntimeError(f"API request failed: {e}")
 
+    full_response = ""
+    prompt_tokens = None
+    completion_tokens = None
+    total_tokens = None
+
+    for chunk in stream:
+        if chunk.choices and chunk.choices[0].delta.content is not None:
+            token = chunk.choices[0].delta.content
+            full_response += token
+            yield token
+        # Capture usage from the final chunk (if available)
+        if hasattr(chunk, "usage") and chunk.usage:
+            prompt_tokens = chunk.usage.prompt_tokens
+            completion_tokens = chunk.usage.completion_tokens
+            total_tokens = chunk.usage.total_tokens
+
+    # If usage wasn't provided in the stream, we can try to get it from the last chunk
+    # but it's usually included.
     metrics["generation_time"] = time.perf_counter() - gen_start
-    response = completion.choices[0].message.content
-    metrics["prompt_tokens"] = completion.usage.prompt_tokens
+    metrics["prompt_tokens"] = prompt_tokens or 0
 
-    return response.strip(), chunks, metrics
+    # Store final data in session state for later display
+    st.session_state["_stream_result"] = {
+        "response": full_response.strip(),
+        "chunks": chunks,
+        "metrics": metrics,
+    }
+
+    # Optionally yield a final sentinel (not needed for st.write_stream)
+    # but we can yield an empty string to finish.
 
 # ---------- STREAMLIT UI ----------
 st.set_page_config(page_title="ChatVeritas", layout="wide", page_icon="💬")
@@ -131,7 +173,7 @@ st.info(
     """
     **Deployment Notice**
 
-    This public deployment uses the **Groq API** for language model inference.
+    This public deployment uses the **GROQ API** for language model inference.
 
     The original ChatVeritas research system includes a fine-tuned LoRA model.
     That model is not included here because its size exceeds the limits of free
@@ -165,26 +207,36 @@ if prompt := st.chat_input("Ask a question..."):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            try:
-                response, chunks, metrics = generate_response(prompt, retriever, config)
-            except Exception as e:
-                st.error(f"Error during generation: {e}")
-                # Optionally show full traceback in an expander for debugging
-                with st.expander("Technical details"):
-                    st.code(traceback.format_exc(), language="python")
-                st.stop()
+        try:
+            # Use st.write_stream to display the generator output in real time
+            stream_gen = generate_response_stream(prompt, retriever, config)
+            final_text = st.write_stream(stream_gen)  # returns the concatenated text
+        except Exception as e:
+            st.error(f"Error during generation: {e}")
+            with st.expander("Technical details"):
+                st.code(traceback.format_exc(), language="python")
+            st.stop()
 
-        st.markdown(response)
+        # After streaming, retrieve the stored result
+        result = st.session_state.pop("_stream_result", None)
+        if result is not None:
+            response = result["response"]
+            chunks = result["chunks"]
+            metrics = result["metrics"]
+        else:
+            # fallback (should not happen)
+            response = final_text or "(No response)"
+            chunks = []
+            metrics = {}
 
-        # ---- Metrics and context expanders (with safe access) ----
+        # ---- Metrics and context expanders ----
         with st.expander("RAG Metrics"):
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Embedding Time", f"{metrics.get('embedding_time_ms', 0.0):.2f} ms")
                 st.metric("Retrieval Time", f"{metrics.get('retrieval_time_ms', 0.0):.2f} ms")
             with col2:
-                st.metric("Re‑ranking Time", f"{metrics.get('reranking_time_ms', 0.0):.2f} ms")
+                st.metric("Re-ranking Time", f"{metrics.get('reranking_time_ms', 0.0):.2f} ms")
                 st.metric("Generation Time", f"{metrics.get('generation_time', 0.0):.2f} s")
                 st.metric("Prompt Tokens", metrics.get("prompt_tokens", 0))
             with col3:
@@ -199,7 +251,7 @@ if prompt := st.chat_input("Ask a question..."):
                         f"**Source:** {chunk.get('source', 'Unknown')}  \n"
                         f"**Chunk ID:** {chunk.get('chunk_id', 'N/A')}  \n"
                         f"**FAISS L2:** {chunk.get('distance', 0.0):.3f}  \n"
-                        f"**Cross‑Encoder:** {chunk.get('rerank_score', 0.0):.3f}"
+                        f"**Cross-Encoder:** {chunk.get('rerank_score', 0.0):.3f}"
                     )
                     st.write(chunk.get("chunk", ""))
             else:
