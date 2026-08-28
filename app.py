@@ -53,7 +53,7 @@ def get_config():
 config = get_config()
 client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
-    base_url=config["llm"].get("url", "https://api.groq.com/openai/v1")
+    base_url=config["llm"].get("url")
 )
 provider = config["llm"].get("provider", "no-provider-specified")
 

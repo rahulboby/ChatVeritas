@@ -39,9 +39,9 @@
   },
 
   "llm": {
-    "url" : "http://localhost:11434/v1",
-    "provider": "ollama",
-    "model": "qwen2.5:7b",
+    "url" : "https://api.groq.com/openai/v1",
+    "provider": "groq",
+    "model": "gpt-oss-120b",
     "temperature": 0.3,
     "max_retries": 1
   },
