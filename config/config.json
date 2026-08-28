@@ -41,7 +41,7 @@
   "llm": {
     "url" : "https://api.groq.com/openai/v1",
     "provider": "groq",
-    "model": "gpt-oss-120b",
+    "model": "openai/gpt-oss-120b",
     "temperature": 0.3,
     "max_retries": 1
   },
