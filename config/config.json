@@ -8,12 +8,12 @@
   },
 
   "embedding": {
-    "model": "BAAI/bge-m3",
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
     "device": "cpu"
   },
 
   "reranker": {
-    "model": "BAAI/bge-reranker-v2-m3",
+    "model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
     "device": "cpu"
   },
 

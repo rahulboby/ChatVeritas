@@ -26,6 +26,7 @@ def clean_text(text):
 
 
 def main():
+    import torch
     raw_dir = PROJECT_ROOT / config["paths"]["raw_data"]
     vectorstore_dir = PROJECT_ROOT / config["paths"]["vectorstore"]
     vectorstore_dir.mkdir(parents=True, exist_ok=True)
@@ -73,8 +74,9 @@ def main():
         texts,
         convert_to_numpy=True,
         show_progress_bar=True,
-        device=config["embedding"].get("device", "cpu")
+        device="cuda" if torch.cuda.is_available() else "cpu"
     )
+    
     embeddings = embeddings.astype(np.float32)
 
     # ---- 5. Build FAISS index ----

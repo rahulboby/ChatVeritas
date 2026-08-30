@@ -90,3 +90,5 @@ models/checkpoints/
 
 # INSTRUCTIONS
 instructions.md
+
+requirements_lock.txt
