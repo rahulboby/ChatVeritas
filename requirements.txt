@@ -7,9 +7,9 @@
 # torchaudio==2.5.1+cu121
 
 # Free Streamlit Deployment Torch
-torch==2.5.1
-torchvision==0.20.1
-torchaudio==2.5.1
+torch
+torchvision
+torchaudio
 
 # Other core ML Stack
 transformers>=5.12.1,<6

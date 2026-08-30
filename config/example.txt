@@ -1,0 +1,16 @@
+openai compatible endpoint for ollama: http://localhost:11434/v1
+Model used: qwen2.5:7b or qwen3:14b
+
+openai compatible endpoint for groq: https://api.groq.com/openai/v1
+Model used: openai/gpt-oss-120b
+
+
+embedders used:
+sentence-transformers/all-MiniLM-L6-v2
+BAAI/bge-base-en-v1.5
+BAAI/bge-m3 <- The best out of all
+
+
+cross encoders used:
+BAAI/bge-reranker-v2-m3
+cross-encoder/ms-marco-MiniLM-L-6-v2
