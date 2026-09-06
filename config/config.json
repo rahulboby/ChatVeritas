@@ -18,7 +18,7 @@
   },
 
   "retrieval": {
-    "top_k": 12,
+    "top_k": 9,
     "chunk_size": 2000,
     "chunk_overlap": 100,
     "faiss_candidates": 100

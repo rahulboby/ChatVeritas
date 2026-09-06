@@ -1,5 +1,5 @@
 openai compatible endpoint for ollama: http://localhost:11434/v1
-Model used: qwen2.5:7b or qwen3:14b
+Model used: qwen2.5:7b or qwen3:14b gpt-oss:20b 
 
 openai compatible endpoint for groq: https://api.groq.com/openai/v1
 Model used: openai/gpt-oss-120b
