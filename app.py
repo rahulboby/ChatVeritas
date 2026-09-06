@@ -1,12 +1,9 @@
 """
-app_deploy.py - ChatVeritas: Fine-Tuned Two-Stage RAG Chatbot
+app.py - ChatVeritas: Two-Stage RAG Chatbot with FAISS & Cross-Encoder
 
 This Streamlit app implements a document-grounded question-answering system.
 It retrieves relevant chunks from a FAISS index, reranks them with a cross-encoder,
 and generates an answer using the API (with streaming support).
-
-The retrieval pipeline uses a fine-tuned embedding model and a reranker.
-The generation step streams output token by token for a responsive UX.
 """
 import os
 import sys
@@ -39,9 +36,6 @@ os.environ["TQDM_DISABLE"] = "1"          # kill tqdm monitor thread
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"   # suppress HF warnings
 
 load_dotenv()
-if not os.getenv("GROQ_API_KEY"):
-    raise RuntimeError("GROQ_API_KEY not found in environment variables.")
-
 faulthandler.enable(all_threads=True)
 
 # ---------- Cache config loader ----------
@@ -51,11 +45,23 @@ def get_config():
     return load_config()
 
 config = get_config()
-client = OpenAI(
-    api_key=os.getenv("GROQ_API_KEY"),
-    base_url=config["llm"].get("url")
-)
+
+# Support both cloud APIs (Groq, OpenAI) and locally hosted OpenAI-compatible LLMs (Ollama, vLLM, LM Studio)
+api_key = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")
+url = config["llm"].get("url", "")
 provider = config["llm"].get("provider", "no-provider-specified")
+
+# Automatically set api_key as placeholder if local url is provided, since its not needed for local LLMs.
+if not api_key:
+    if "localhost" in url or "127.0.0.1" in url or provider.lower() in ["local", "ollama", "vllm", "lmstudio"]:
+        api_key = "local"
+    else:
+        raise RuntimeError("GROQ_API_KEY not found in environment variables.")
+
+client = OpenAI(
+    api_key=api_key,
+    base_url=url
+)
 
 # ---------- Load components with checkpoints ----------
 @st.cache_resource
@@ -167,20 +173,16 @@ def generate_response_stream(question, retriever, config):
 
 # ---------- STREAMLIT UI ----------
 st.set_page_config(page_title="ChatVeritas", layout="wide", page_icon="💬")
-st.title("ChatVeritas: Fine-Tuned Two-Stage RAG Chatbot on Custom Dataset")
+st.title("ChatVeritas: Two-Stage RAG Chatbot (FAISS + Cross-Encoder)")
 
 st.info(
     """
-    **Deployment Notice**
+    **System Architecture**
 
-    This public deployment uses the **GROQ API** for language model inference.
-
-    The original ChatVeritas research system includes a fine-tuned LoRA model.
-    That model is not included here because its size exceeds the limits of free
-    cloud deployment platforms.
-
-    The complete retrieval pipeline—including FAISS retrieval, reranking,
-    and context-grounded generation—remains unchanged.
+    ChatVeritas features a **Two-Stage RAG Pipeline**:
+    1. **Retrieval**: FAISS dense vector search over document chunk embeddings.
+    2. **Reranking**: Cross-Encoder model to score and reorder top candidates for context accuracy.
+    3. **Generation**: LLM inference grounded strictly on the retrieved context.
     """
 )
 

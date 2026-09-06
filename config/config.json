@@ -31,38 +31,11 @@
 
   "paths": {
     "raw_data": "data/raw",
-    "vectorstore": "data/vectorstore",
-    "processed_data": "data/processed/train.jsonl",
-    "training_checkpoints": "models/checkpoints"
-  },
-
-  "dataset": {
-    "max_chunk_tokens": 500
+    "vectorstore": "data/vectorstore"
   },
 
   "cache": {
     "enabled": true,
     "directory": "data/cache"
-  },
-
-  "model": {
-    "base_model": "Qwen/Qwen2.5-3B-Instruct",
-    "adapter_repo_id": "rahulboby/chatveritas-lora-adapter",
-    "adapter_path": "models/adapters"
-  },
-
-  "training": {
-    "epochs": 3,
-    "batch_size": 2,
-    "gradient_accumulation": 8,
-    "learning_rate": 0.0002,
-    "max_sequence_length": 2048
-  },
-
-  "lora": {
-    "r": 16,
-    "alpha": 32,
-    "dropout": 0.05,
-    "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
   }
 }

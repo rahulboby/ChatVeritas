@@ -1,8 +1,8 @@
 # End-to-End Pipeline
 
-This project implements a **Retrieval-Augmented Generation (RAG)** chatbot using **Qwen 2.5**, **Sentence Transformers**, **FAISS**, and **Streamlit**. The system allows a user to place custom `.txt` documents into a folder, index them into a vector database, and query them through a conversational interface.
+This project implements a **Retrieval-Augmented Generation (RAG)** chatbot using **Sentence Transformers**, **FAISS**, **Cross-Encoder reranking**, and **Streamlit**. The system allows a user to place custom `.txt` documents into a folder, index them into a vector database, rerank search results, and query them through a conversational interface.
 
-The project combines RAG with optional QLoRA fine-tuning. RAG keeps document knowledge in FAISS, while QLoRA trains a small PEFT adapter and leaves the base Qwen weights unchanged.
+The project combines dense vector retrieval with cross-encoder reranking to ensure accurate, document-grounded responses.
 
 ---
 

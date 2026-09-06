@@ -1,7 +1,0 @@
-{
-  "base_model": "Qwen/Qwen2.5-3B-Instruct",
-  "dataset": "C:\\Users\\rahul\\Projects\\ChatVeritas - LLM Fine TUning, RAG with FAISS, Cross Encoder\\ChatVeritas\\data\\processed\\train.jsonl",
-  "training_samples": 385,
-  "validation_samples": 20,
-  "adapter_path": "C:\\Users\\rahul\\Projects\\ChatVeritas - LLM Fine TUning, RAG with FAISS, Cross Encoder\\ChatVeritas\\models\\adapters"
-}
