@@ -21,7 +21,7 @@
     "top_k": 9,
     "chunk_size": 2000,
     "chunk_overlap": 100,
-    "faiss_candidates": 100
+    "faiss_candidates": 50
   },
 
   "generation": {
