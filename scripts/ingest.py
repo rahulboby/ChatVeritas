@@ -5,7 +5,6 @@ import re
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
 # from langchain.text_splitter import RecursiveCharacterTextSplitter # If you have the full langchain ecosystem
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -14,6 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
 from utils.config_loader import load_config
+from utils.vectorstores import named_vectorstore_path
 
 config = load_config()
 
@@ -26,12 +26,30 @@ def clean_text(text):
 
 
 def main():
-    import torch
     raw_dir = PROJECT_ROOT / config["paths"]["raw_data"]
-    vectorstore_dir = PROJECT_ROOT / config["paths"]["vectorstore"]
-    vectorstore_dir.mkdir(parents=True, exist_ok=True)
+    if not raw_dir.is_dir():
+        raise FileNotFoundError(f"Raw data directory does not exist: {raw_dir}")
+
+    while True:
+        name = input("Name this vector store: ").strip()
+        try:
+            vectorstore_dir = named_vectorstore_path(PROJECT_ROOT, config, name)
+        except ValueError as error:
+            print(error)
+            continue
+        if vectorstore_dir.exists():
+            print(f"Vector store already exists: {vectorstore_dir}. Choose a new name.")
+            continue
+        break
+
+    txt_files = sorted(raw_dir.glob("*.txt"))
+    if not txt_files:
+        raise ValueError(f"No .txt files found in {raw_dir}")
 
     # ---- 1. Load embedding model ----
+    import torch
+    from sentence_transformers import SentenceTransformer
+
     print("Loading embedding model...")
     embedder = SentenceTransformer(config["embedding"]["model"])
 
@@ -46,7 +64,6 @@ def main():
     # ---- 3. Process all .txt files ----
     all_chunks = []
     chunk_id = 0
-    txt_files = list(raw_dir.glob("*.txt"))
     print(f"Found {len(txt_files)} files")
 
     for file in txt_files:
@@ -66,6 +83,8 @@ def main():
             chunk_id += 1
 
     print(f"Created {len(all_chunks)} chunks")
+    if not all_chunks:
+        raise ValueError(f"No text chunks were created from files in {raw_dir}")
 
     # ---- 4. Generate embeddings ----
     print("Generating embeddings...")
@@ -84,6 +103,7 @@ def main():
     index = faiss.IndexFlatL2(dimension)
     index.add(embeddings)
 
+    vectorstore_dir.mkdir(parents=True, exist_ok=False)
     faiss.write_index(index, str(vectorstore_dir / "index.faiss"))
 
     # ---- 6. Save chunks ----

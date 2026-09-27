@@ -11,6 +11,15 @@ import time
 import textwrap
 from pathlib import Path
 
+# ========== THREADING & ENVIRONMENT ==========
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["TQDM_DISABLE"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+
 # ---- Set project root and adjust sys.path ----
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
@@ -26,21 +35,34 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 from utils.config_loader import load_config
-from utils.retriever import Retriever
-
-# ========== THREADING & ENVIRONMENT ==========
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["TQDM_DISABLE"] = "1"
-os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+from utils.vectorstores import list_vectorstores
 
 
 def init_chatveritas():
     load_dotenv()
     config = load_config()
+
+    vectorstores = list_vectorstores(PROJECT_ROOT, config)
+    if not vectorstores:
+        raise FileNotFoundError(
+            "No vector stores are available. Run scripts/ingest.py to create one."
+        )
+
+    print("Available vector stores:")
+    for number, vectorstore in enumerate(vectorstores, start=1):
+        print(f"  {number}. {vectorstore.name}")
+
+    while True:
+        choice = input("Choose a vector store by number: ").strip()
+        try:
+            selected_index = int(choice) - 1
+        except ValueError:
+            print("Enter the number shown next to the desired vector store.")
+            continue
+        if 0 <= selected_index < len(vectorstores):
+            vectorstore_path = vectorstores[selected_index]
+            break
+        print(f"Choose a number from 1 to {len(vectorstores)}.")
 
     # Determine API key (supporting cloud providers like Groq or local OpenAI-compatible endpoints)
     api_key = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -58,9 +80,11 @@ def init_chatveritas():
         base_url=url
     )
 
+    from utils.retriever import Retriever
+
     retriever = Retriever(
-        index_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "index.faiss",
-        chunks_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "chunks.pkl",
+        index_path=vectorstore_path / "index.faiss",
+        chunks_path=vectorstore_path / "chunks.pkl",
         embedding_model=config["embedding"]["model"],
         top_k=config["retrieval"]["top_k"],
         faiss_candidates=config["retrieval"]["faiss_candidates"],
@@ -133,14 +157,18 @@ def generate_response(question, client, retriever, config):
     full_response = ""
     prompt_tokens = 0
 
-    for chunk in stream:
-        if chunk.choices and chunk.choices[0].delta.content is not None:
-            token = chunk.choices[0].delta.content
-            full_response += token
-            print(token, end="", flush=True)
+    try:
+        for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content is not None:
+                token = chunk.choices[0].delta.content
+                full_response += token
+                print(token, end="", flush=True)
 
-        if hasattr(chunk, "usage") and chunk.usage:
-            prompt_tokens = chunk.usage.prompt_tokens
+            if hasattr(chunk, "usage") and chunk.usage:
+                prompt_tokens = chunk.usage.prompt_tokens
+    except Exception as error:
+        print(f"\n[Error] Streaming response failed: {error}")
+        return
 
     generation_time = time.perf_counter() - gen_start
     print("\n")

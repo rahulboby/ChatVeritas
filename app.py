@@ -12,6 +12,15 @@ import textwrap
 import traceback
 from pathlib import Path
 
+# ========== THREADING LIMITS ==========
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["TQDM_DISABLE"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+
 # ---- Set project root and adjust sys.path BEFORE importing project modules ----
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.append(str(PROJECT_ROOT))
@@ -24,19 +33,11 @@ from dotenv import load_dotenv
 
 # ---- Project imports ----
 from utils.config_loader import load_config
-from utils.retriever import Retriever
-
-# ========== THREADING LIMITS (prevent tqdm & BLAS threads from crashing) ==========
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
-os.environ["TQDM_DISABLE"] = "1"          # kill tqdm monitor thread
-os.environ["TRANSFORMERS_VERBOSITY"] = "error"   # suppress HF warnings
+from utils.vectorstores import list_vectorstores
 
 load_dotenv()
 faulthandler.enable(all_threads=True)
+st.set_page_config(page_title="ChatVeritas", layout="wide", page_icon="💬")
 
 # ---------- Cache config loader ----------
 @st.cache_data
@@ -46,29 +47,31 @@ def get_config():
 
 config = get_config()
 
-# Support both cloud APIs (Groq, OpenAI) and locally hosted OpenAI-compatible LLMs (Ollama, vLLM, LM Studio)
-api_key = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")
-url = config["llm"].get("url", "")
-provider = config["llm"].get("provider", "no-provider-specified")
+def create_client(config):
+    url = config["llm"].get("url", "")
+    provider = config["llm"].get("provider", "no-provider-specified").lower()
+    api_key = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")
 
-# Automatically set api_key as placeholder if local url is provided, since its not needed for local LLMs.
-if not api_key:
-    if "localhost" in url or "127.0.0.1" in url or provider.lower() in ["local", "ollama", "vllm", "lmstudio"]:
+    if not api_key:
+        is_local = (
+            "localhost" in url
+            or "127.0.0.1" in url
+            or provider in {"local", "ollama", "vllm", "lmstudio"}
+        )
+        if not is_local:
+            raise RuntimeError("Set GROQ_API_KEY or OPENAI_API_KEY before chatting.")
         api_key = "local"
-    else:
-        raise RuntimeError("GROQ_API_KEY not found in environment variables.")
 
-client = OpenAI(
-    api_key=api_key,
-    base_url=url
-)
+    return OpenAI(api_key=api_key, base_url=url)
 
 # ---------- Load components with checkpoints ----------
 @st.cache_resource
-def load_components(config):
+def load_components(config, vectorstore_path):
+    from utils.retriever import Retriever
+
     retriever = Retriever(
-        index_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "index.faiss",
-        chunks_path=PROJECT_ROOT / config["paths"]["vectorstore"] / "chunks.pkl",
+        index_path=Path(vectorstore_path) / "index.faiss",
+        chunks_path=Path(vectorstore_path) / "chunks.pkl",
         embedding_model=config["embedding"]["model"],
         top_k=config["retrieval"]["top_k"],
         faiss_candidates=config["retrieval"]["faiss_candidates"],
@@ -79,7 +82,7 @@ def load_components(config):
     return retriever
 
 # ---------- Streaming generator ----------
-def generate_response_stream(question, retriever, config):
+def generate_response_stream(question, retriever, config, client):
     """
     Generator that yields tokens from the API while also building the full response.
     After streaming completes, it stores the final response, chunks, and metrics
@@ -172,7 +175,6 @@ def generate_response_stream(question, retriever, config):
     # but we can yield an empty string to finish.
 
 # ---------- STREAMLIT UI ----------
-st.set_page_config(page_title="ChatVeritas", layout="wide", page_icon="💬")
 st.title("ChatVeritas: Two-Stage RAG Chatbot (FAISS + Cross-Encoder)")
 
 st.info(
@@ -186,10 +188,20 @@ st.info(
     """
 )
 
-# Load config and components
+config = get_config()
+vectorstores = list_vectorstores(PROJECT_ROOT, config)
+if not vectorstores:
+    st.error("No vector stores are available. Run scripts/ingest.py to create one.")
+    st.stop()
+
+vectorstore_names = [path.name for path in vectorstores]
+selected_name = st.sidebar.selectbox("Vector store", vectorstore_names)
+selected_vectorstore = next(path for path in vectorstores if path.name == selected_name)
+
+# Load the selected store and API client only after the user has chosen a store.
 try:
-    config = get_config()
-    retriever = load_components(config)
+    client = create_client(config)
+    retriever = load_components(config, str(selected_vectorstore))
 except Exception as e:
     st.error(f"Failed to load components: {e}")
     st.code(traceback.format_exc(), language="python")
@@ -211,7 +223,7 @@ if prompt := st.chat_input("Ask a question..."):
     with st.chat_message("assistant"):
         try:
             # Use st.write_stream to display the generator output in real time
-            stream_gen = generate_response_stream(prompt, retriever, config)
+            stream_gen = generate_response_stream(prompt, retriever, config, client)
             final_text = st.write_stream(stream_gen)  # returns the concatenated text
         except Exception as e:
             st.error(f"Error during generation: {e}")

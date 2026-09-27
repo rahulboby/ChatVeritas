@@ -46,6 +46,9 @@ python scripts/ingest.py
 ```
 
 This script performs all preprocessing required before the chatbot can answer questions.
+It asks for a unique store name and saves the index and chunk metadata in
+`data/vectorstore_<name>/`. Existing stores are not overwritten; each run reads
+the same source files from `data/raw/`.
 
 The overall workflow is:
 
@@ -309,6 +312,9 @@ streamlit run app.py
 ```
 
 Streamlit starts the web application and loads all required components.
+Choose the vector store from the selector in the sidebar before chatting. To use
+the terminal interface instead, run `python scripts/chat.py` and select a store
+by its number.
 
 ### Dependencies
 
@@ -574,8 +580,8 @@ using Streamlit components such as:
 3. Documents are divided into overlapping chunks.
 4. Each chunk is converted into a 384-dimensional embedding using `SentenceTransformer`.
 5. All embeddings are indexed using FAISS (`IndexFlatL2`).
-6. The FAISS index (`index.faiss`) and chunk metadata (`chunks.pkl`) are saved locally.
-7. The user launches the chatbot using Streamlit.
+6. The FAISS index (`index.faiss`) and chunk metadata (`chunks.pkl`) are saved in `data/vectorstore_<name>/`.
+7. The user launches the chatbot using Streamlit or `python scripts/chat.py` and selects a vector store.
 8. Qwen, the tokenizer, the embedding model, and the FAISS index are loaded into memory.
 9. The user asks a question.
 10. The question is embedded using the same Sentence Transformer model.
