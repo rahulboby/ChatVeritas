@@ -40,7 +40,8 @@ import trafilatura
 # ==============================================================================
 
 URLS = [
-    "https://docs.python.org/release/3.10.20/tutorial/index.html",
+    "https://devdocs.io/openjdk~8/",
+    "https://docs.oracle.com/javase/8/docs/"
 ]
 
 MAX_DEPTH = 1
