@@ -113,8 +113,7 @@ def generate_response(question, client, retriever, config):
         1. Base your answer primarily on the provided context.
         2. If the answer is explicitly stated in the context, answer confidently.
         3. If the answer is not explicitly stated but can be reasonably inferred, clearly state it is an inference.
-        4. Only respond with "I don't have enough information in the provided documents." if the context is insufficient.
-        5. Never invent facts.
+        4. Only respond with "I don't have enough information in the provided documents." if the context is insufficient, and then proceed with explanation of your own memory, outside of the given context.
 
         Context:
         {context}
