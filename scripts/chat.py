@@ -63,22 +63,22 @@ def init_chatveritas():
             vectorstore_path = vectorstores[selected_index]
             break
         print(f"Choose a number from 1 to {len(vectorstores)}.")
+    while True:
+        endpoint = input("Response endpoint: Ollama (o, default) or Groq (g): ").strip().lower()
+        if endpoint in {"", "o", "ollama"}:
+            active_llm = config["model_ollama"]
+            api_key = "ollama"
+            break
+        if endpoint in {"g", "groq"}:
+            active_llm = config["llm"]
+            api_key = os.getenv("GROQ_API_KEY")
+            if not api_key:
+                raise RuntimeError("Set GROQ_API_KEY to use the Groq endpoint.")
+            break
+        print("Choose 'o' for Ollama or 'g' for Groq.")
 
-    # Determine API key (supporting cloud providers like Groq or local OpenAI-compatible endpoints)
-    api_key = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")
-    url = config.get("llm", {}).get("url", "")
-    provider = config.get("llm", {}).get("provider", "no-provider-specified")
-
-    if not api_key:
-        if "localhost" in url or "127.0.0.1" in url or provider.lower() in ["local", "ollama", "vllm", "lmstudio"]:
-            api_key = "local"
-        else:
-            raise RuntimeError("GROQ_API_KEY (or OPENAI_API_KEY) not found in environment variables.")
-
-    client = OpenAI(
-        api_key=api_key,
-        base_url=url
-    )
+    client = OpenAI(api_key=api_key, base_url=active_llm["url"])
+    config["active_llm"] = active_llm
 
     from utils.retriever import Retriever
 
@@ -129,7 +129,7 @@ def generate_response(question, client, retriever, config):
 
     try:
         stream = client.chat.completions.create(
-            model=config["llm"].get("model", "no-model-specified"),
+            model=config["active_llm"]["model"],
             messages=[
                 {
                     "role": "system",
@@ -207,7 +207,7 @@ def main():
         return
 
     print(f"Ready in {time.perf_counter() - start:.2f}s.")
-    print(f"Provider: {config['llm'].get('provider')} | Model: {config['llm'].get('model')}")
+    print(f"Provider: {config['active_llm']['provider']} | Model: {config['active_llm']['model']}")
     print("Type your question below (or 'exit' to quit).\n")
 
     while True:

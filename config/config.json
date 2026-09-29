@@ -6,6 +6,11 @@
     "temperature": 0.3,
     "max_retries": 1
   },
+  "model_ollama": {
+    "url": "http://localhost:11434/v1",
+    "provider": "ollama",
+    "model": "gpt-oss:20b"
+  },
 
   "embedding": {
     "model": "sentence-transformers/all-MiniLM-L6-v2",
