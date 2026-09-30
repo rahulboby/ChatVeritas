@@ -1,9 +1,10 @@
-"""Purpose: Download Hugging Face models once into the project-local data/models directory.
-Dependencies: built-in: pathlib; installed: huggingface-hub.
+"""Purpose: Reuse cached Hugging Face models or download them into project-local data/models.
+Dependencies: built-in: pathlib, shutil; installed: huggingface-hub.
 Custom: none.
 """
 
 from pathlib import Path
+from shutil import copytree
 
 
 def ensure_model_available(model_name, project_root=None):
@@ -29,11 +30,22 @@ def ensure_model_available(model_name, project_root=None):
         return str(model_directory)
 
     from huggingface_hub import snapshot_download
+    from huggingface_hub.errors import LocalEntryNotFoundError
 
-    model_directory.mkdir(parents=True, exist_ok=True)
-    snapshot_download(
-        repo_id=model_name,
-        local_dir=str(model_directory),
-    )
+    model_directory.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        cached_snapshot = snapshot_download(
+            repo_id=model_name,
+            local_files_only=True,
+        )
+    except LocalEntryNotFoundError:
+        model_directory.mkdir(parents=True, exist_ok=True)
+        snapshot_download(
+            repo_id=model_name,
+            local_dir=str(model_directory),
+        )
+    else:
+        copytree(cached_snapshot, model_directory, dirs_exist_ok=True)
+
     completion_marker.touch()
     return str(model_directory)
