@@ -1,3 +1,8 @@
+"""Purpose: Print chunk metadata and text from the configured vector store.
+Dependencies: built-in: sys, pickle, pathlib; installed: none.
+Custom: utils.config_loader.
+"""
+
 import sys
 import pickle
 from pathlib import Path
@@ -6,10 +11,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
 from utils.config_loader import load_config
-
-"""
-    Prints all the chunks frorm the chunks.pkl file in a readable format.
-"""
 
 def main():
 

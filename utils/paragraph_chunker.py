@@ -1,20 +1,6 @@
-"""
-utils/paragraph_chunker.py
-
-Utilities for splitting raw TXT files into semantic chunks suitable for
-both RAG and fine-tuning.
-
-Pipeline:
-TXT File
-    ↓
-Paragraph Split
-    ↓
-Remove Empty Paragraphs
-    ↓
-If paragraph <= max_tokens:
-    Keep
-Else:
-    Split by sentence boundaries
+"""Purpose: Split document text into paragraph- and token-bounded semantic chunks.
+Dependencies: built-in: re, typing; installed: transformers.
+Custom: none.
 """
 
 from __future__ import annotations

@@ -1,9 +1,6 @@
-"""
-scripts/chat.py - ChatVeritas: Terminal CLI for Two-Stage RAG Chatbot
-
-Runs the identical two-stage RAG pipeline and API-based generation as app.py,
-designed for terminal/CLI interaction with streaming responses and retrieval metrics.
-Supports both cloud providers (Groq, OpenAI) and locally hosted OpenAI-compatible LLMs.
+"""Purpose: Run the terminal RAG chatbot with streaming answers and retrieval metrics.
+Dependencies: built-in: os, sys, time, textwrap, pathlib; installed: openai, python-dotenv.
+Custom: utils.config_loader, utils.vectorstores, utils.retriever.
 """
 import os
 import sys

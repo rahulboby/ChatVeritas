@@ -1,3 +1,8 @@
+"""Purpose: Retrieve nearest FAISS chunks, embed queries, and rerank candidate results.
+Dependencies: built-in: pickle, time; installed: faiss, numpy, sentence-transformers.
+Custom: utils.model_store, utils.reranker.
+"""
+
 import pickle
 
 import time

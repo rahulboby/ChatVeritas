@@ -1,3 +1,8 @@
+"""Purpose: Test model downloads, successful local reuse, and retry after failed downloads.
+Dependencies: built-in: tempfile, unittest, pathlib; installed: huggingface-hub.
+Custom: utils.model_store.
+"""
+
 import tempfile
 import unittest
 from pathlib import Path

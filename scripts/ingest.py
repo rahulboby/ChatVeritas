@@ -1,3 +1,8 @@
+"""Purpose: Chunk raw text documents, embed them, and build a named FAISS vector store.
+Dependencies: built-in: sys, pathlib, pickle, re; installed: faiss, numpy, langchain-text-splitters, torch, sentence-transformers.
+Custom: utils.config_loader, utils.model_store, utils.vectorstores.
+"""
+
 import sys
 from pathlib import Path
 import pickle

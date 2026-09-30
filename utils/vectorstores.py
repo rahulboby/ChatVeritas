@@ -1,3 +1,8 @@
+"""Purpose: Name vector-store directories and list stores with valid index metadata.
+Dependencies: built-in: re, pathlib; installed: none.
+Custom: none.
+"""
+
 import re
 from pathlib import Path
 

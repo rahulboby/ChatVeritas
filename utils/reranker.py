@@ -1,3 +1,8 @@
+"""Purpose: Score and sort retrieved text chunks with a local cross-encoder model.
+Dependencies: built-in: none; installed: sentence-transformers.
+Custom: utils.model_store.
+"""
+
 from sentence_transformers import CrossEncoder
 from utils.model_store import ensure_model_available
 

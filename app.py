@@ -1,9 +1,6 @@
-"""
-app.py - ChatVeritas: Two-Stage RAG Chatbot with FAISS & Cross-Encoder
-
-This Streamlit app implements a document-grounded question-answering system.
-It retrieves relevant chunks from a FAISS index, reranks them with a cross-encoder,
-and generates an answer using the API (with streaming support).
+"""Purpose: Run the Streamlit RAG chatbot with retrieval, reranking, and streamed answers.
+Dependencies: built-in: os, sys, time, textwrap, traceback, pathlib, faulthandler; installed: faiss, streamlit, openai, python-dotenv.
+Custom: utils.config_loader, utils.vectorstores, utils.retriever.
 """
 import os
 import sys

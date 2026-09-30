@@ -1,3 +1,8 @@
+"""Purpose: Load the project configuration from config/config.json.
+Dependencies: built-in: json, pathlib; installed: none.
+Custom: none.
+"""
+
 import json
 from pathlib import Path
 

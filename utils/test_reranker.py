@@ -1,3 +1,8 @@
+"""Purpose: Measure the startup time for loading the configured cross-encoder model.
+Dependencies: built-in: time; installed: sentence-transformers.
+Custom: none.
+"""
+
 # For testing reranker crash in terminal (If app working, delete this file)
 from sentence_transformers import CrossEncoder
 import time

@@ -1,15 +1,6 @@
-"""
-utils/cache.py
-
-Simple disk-based cache for synthetic dataset generation.
-
-Each document chunk is hashed using SHA-256 and stored as an
-individual JSON file.
-
-Benefits:
-- Resume interrupted runs
-- Avoid duplicate API calls
-- Save API credits
+"""Purpose: Cache generated chunk data in individual JSON files addressed by SHA-256.
+Dependencies: built-in: hashlib, json, os, pathlib, typing; installed: none.
+Custom: none.
 """
 
 from __future__ import annotations

@@ -1,3 +1,8 @@
+"""Purpose: Download Hugging Face models once into the project-local data/models directory.
+Dependencies: built-in: pathlib; installed: huggingface-hub.
+Custom: none.
+"""
+
 from pathlib import Path
 
 

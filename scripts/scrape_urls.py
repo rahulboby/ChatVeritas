@@ -1,30 +1,6 @@
-"""
-scrape_urls.py – Multi‑level web scraper with BFS crawl
-
-Purpose:
-    Starting from one or more seed URLs, this script performs a BFS (or DFS)
-    crawl up to a specified depth. For every visited page, it extracts the
-    main textual content (as Markdown) using trafilatura and saves it as a
-    .txt file named after the sanitized URL.
-
-Configuration (edit at the top):
-    URLS         : list of seed URLs
-    MAX_DEPTH    : how many levels to crawl (0 = seeds only, 1 = seeds + direct links, ...)
-    OUTPUT_DIR   : folder relative to script's parent directory where .txt files are saved
-    TIMEOUT      : request timeout in seconds
-
-Usage:
-    python scripts/scrape_urls.py                    # uses URLS and MAX_DEPTH from the script
-    python scripts/scrape_urls.py https://example.com  # override seeds with a single URL
-    python scripts/scrape_urls.py urls.txt 2         # read seeds from a file, set depth to 2
-    (The last argument can be a depth integer if it's a number; all preceding args are treated as URLs or files.)
-
-Output:
-    For each visited page, a .txt file is created in OUTPUT_DIR with the extracted content.
-    Filenames are based on the full URL (sanitized for filesystem compatibility).
-
-Dependencies:
-    requests, beautifulsoup4, trafilatura
+"""Purpose: Crawl pages from seed URLs and save extracted text as local files.
+Dependencies: built-in: pathlib, re, urllib.parse, collections, sys; installed: requests, beautifulsoup4, trafilatura.
+Custom: none.
 """
 
 from pathlib import Path
