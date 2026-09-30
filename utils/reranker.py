@@ -1,4 +1,5 @@
 from sentence_transformers import CrossEncoder
+from utils.model_store import ensure_model_available
 
 
 class Reranker:
@@ -10,7 +11,7 @@ class Reranker:
     ):
 
         self.model = CrossEncoder(
-            model_name,
+            ensure_model_available(model_name),
             device=device
         )
 

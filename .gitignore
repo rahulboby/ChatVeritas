@@ -68,6 +68,7 @@ huggingface/
 data/processed/
 data/cache/
 data/model_offload/
+data/models/
 data/raw*/
 # data/vectorstore/
 

@@ -316,6 +316,11 @@ Choose the vector store from the selector in the sidebar before chatting. To use
 the terminal interface instead, run `python scripts/chat.py` and select a store
 by its number.
 
+Embedding and reranker models are stored under `data/models/`. Each model is
+downloaded from Hugging Face the first time it is needed, so an internet
+connection is required for initial setup. Later runs load the project-local
+files without checking Hugging Face; the directory is ignored by Git.
+
 ### Dependencies
 
 | Package | Role |

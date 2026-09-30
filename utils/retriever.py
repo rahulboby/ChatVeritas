@@ -7,6 +7,7 @@ import numpy as np
 
 from sentence_transformers import SentenceTransformer
 
+from utils.model_store import ensure_model_available
 from utils.reranker import Reranker
 
 
@@ -36,7 +37,7 @@ class Retriever:
             self.chunks = pickle.load(f)
 
         self.embedder = SentenceTransformer(
-            embedding_model,
+            ensure_model_available(embedding_model),
             device=embedding_device
         )
 

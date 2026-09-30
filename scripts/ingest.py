@@ -13,6 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
 from utils.config_loader import load_config
+from utils.model_store import ensure_model_available
 from utils.vectorstores import named_vectorstore_path
 
 config = load_config()
@@ -51,7 +52,9 @@ def main():
     from sentence_transformers import SentenceTransformer
 
     print("Loading embedding model...")
-    embedder = SentenceTransformer(config["embedding"]["model"])
+    embedder = SentenceTransformer(
+        ensure_model_available(config["embedding"]["model"])
+    )
 
     # ---- 2. Set up the text splitter (character‑based) ----
     splitter = RecursiveCharacterTextSplitter(
