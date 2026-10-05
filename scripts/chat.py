@@ -32,6 +32,11 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 from utils.config_loader import load_config
+from utils.chat_history import (
+    build_request_messages,
+    parse_chat_command,
+    record_completed_turn,
+)
 from utils.vectorstores import list_vectorstores
 
 
@@ -93,7 +98,7 @@ def init_chatveritas():
     return client, retriever, config
 
 
-def generate_response(question, client, retriever, config):
+def generate_response(question, client, retriever, config, history=None):
     # ---- Retrieval ----
     retrieval = retriever.retrieve(question)
     chunks = retrieval["results"]
@@ -126,28 +131,24 @@ def generate_response(question, client, retriever, config):
     try:
         stream = client.chat.completions.create(
             model=config["active_llm"]["model"],
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are ChatVeritas, a document-grounded AI assistant. "
-                        "Answer only using the supplied context. "
-                        "If the answer is not present, clearly state that there "
-                        "is insufficient information."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
+            messages=build_request_messages(
+                system_prompt=(
+                    "You are ChatVeritas, a document-grounded AI assistant. "
+                    "Answer only using the supplied context. "
+                    "If the answer is not present, clearly state that there "
+                    "is insufficient information."
+                ),
+                current_prompt=prompt,
+                provider=config["active_llm"]["provider"],
+                history=history,
+            ),
             temperature=config["generation"]["temperature"],
             max_tokens=config["generation"]["max_new_tokens"],
             stream=True,
         )
     except Exception as e:
         print(f"\n[Error] API request failed: {e}")
-        return
+        return None
 
     print("\nAssistant: ", end="", flush=True)
     full_response = ""
@@ -164,13 +165,21 @@ def generate_response(question, client, retriever, config):
                 prompt_tokens = chunk.usage.prompt_tokens
     except Exception as error:
         print(f"\n[Error] Streaming response failed: {error}")
-        return
+        return None
+
+    record_completed_turn(
+        history if history is not None else [],
+        config["active_llm"]["provider"],
+        question,
+        full_response,
+    )
 
     generation_time = time.perf_counter() - gen_start
     print("\n")
 
     # ---- Display RAG Metrics & Sources (mirroring app.py) ----
     print("-" * 60)
+    return full_response
     print("RAG Metrics:")
     print(f"  - Embedding Time : {metrics.get('embedding_time_ms', 0.0):.2f} ms")
     print(f"  - Retrieval Time : {metrics.get('retrieval_time_ms', 0.0):.2f} ms")
@@ -204,7 +213,13 @@ def main():
 
     print(f"Ready in {time.perf_counter() - start:.2f}s.")
     print(f"Provider: {config['active_llm']['provider']} | Model: {config['active_llm']['model']}")
-    print("Type your question below (or 'exit' to quit).\n")
+    provider = config["active_llm"]["provider"].casefold()
+    history = []
+    if provider == "ollama":
+        print("Ollama conversation history is enabled; retrieved context is not retained.")
+    else:
+        print("Groq conversation history is disabled.")
+    print("Use /clear to clear history, /bye or /exit to quit.\n")
 
     while True:
         try:
@@ -216,11 +231,20 @@ def main():
         if not question:
             continue
 
-        if question.lower() in ["exit", "quit", "q"]:
+        command = parse_chat_command(question)
+        if command == "/clear":
+            history.clear()
+            if provider == "ollama":
+                print("Conversation history cleared.")
+            else:
+                print("Groq does not retain conversation history.")
+            continue
+
+        if command in {"/bye", "/exit"} or question.casefold() in {"exit", "quit", "q"}:
             print("Goodbye!")
             break
 
-        generate_response(question, client, retriever, config)
+        generate_response(question, client, retriever, config, history)
         print()
 
 
