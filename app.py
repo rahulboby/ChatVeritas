@@ -1,6 +1,6 @@
-"""Purpose: Run the Streamlit RAG chatbot with retrieval, reranking, and streamed answers.
+"""Purpose: Run the Streamlit RAG chatbot with retrieval, uploads, and streamed answers.
 Dependencies: built-in: os, sys, time, textwrap, traceback, pathlib, faulthandler; installed: faiss, streamlit, openai, python-dotenv.
-Custom: utils.config_loader, utils.vectorstores, utils.retriever.
+Custom: scripts.convert_pdfs, utils.config_loader, utils.chat_history, utils.vectorstores, utils.retriever.
 """
 import os
 import sys
@@ -36,6 +36,7 @@ from utils.chat_history import (
     record_completed_turn,
 )
 from utils.vectorstores import list_vectorstores
+from scripts.convert_pdfs import build_session_retriever, uploaded_files_signature
 
 load_dotenv()
 faulthandler.enable(all_threads=True)
@@ -193,13 +194,20 @@ st.info(
 
 config = get_config()
 vectorstores = list_vectorstores(PROJECT_ROOT, config)
-if not vectorstores:
-    st.error("No vector stores are available. Run scripts/ingest.py to create one.")
-    st.stop()
-
 vectorstore_names = [path.name for path in vectorstores]
-selected_name = st.sidebar.selectbox("Vector store", vectorstore_names)
-selected_vectorstore = next(path for path in vectorstores if path.name == selected_name)
+if vectorstore_names:
+    selected_name = st.sidebar.selectbox("Vector store", vectorstore_names)
+    selected_vectorstore = next(path for path in vectorstores if path.name == selected_name)
+else:
+    selected_vectorstore = None
+    st.sidebar.caption("No saved vector stores are available.")
+
+uploaded_files = st.sidebar.file_uploader(
+    "Temporary documents",
+    type=("pdf", "txt"),
+    accept_multiple_files=True,
+    help="Uploaded documents temporarily replace the selected saved vector store. Remove any uploaded docs to continue with defaults.",
+)
 selected_provider = st.sidebar.selectbox(
     "Response endpoint",
     ("Ollama", "Groq"),
@@ -221,9 +229,8 @@ elif st.session_state.history_provider != selected_provider:
 # Load the selected store and API client only after the user has chosen a store.
 try:
     client = create_client(config, selected_provider)
-    retriever = load_components(config, str(selected_vectorstore))
 except Exception as e:
-    st.error(f"Failed to load components: {e}")
+    st.error(f"Failed to initialize response provider: {e}")
     st.code(traceback.format_exc(), language="python")
     st.stop()
 
@@ -232,6 +239,43 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "ollama_history" not in st.session_state:
     st.session_state.ollama_history = []
+
+try:
+    if uploaded_files:
+        upload_signature = uploaded_files_signature(uploaded_files)
+        if (
+            st.session_state.get("upload_signature") != upload_signature
+            or st.session_state.get("upload_retriever") is None
+        ):
+            with st.spinner("Building a temporary RAG system from uploaded documents..."):
+                upload_retriever = build_session_retriever(uploaded_files, config)
+            st.session_state.upload_signature = upload_signature
+            st.session_state.upload_retriever = upload_retriever
+
+        retriever = st.session_state.upload_retriever
+        active_corpus_key = ("uploads", upload_signature)
+        st.sidebar.success("Uploaded documents are active for this session only.")
+    elif selected_vectorstore is not None:
+        st.session_state.pop("upload_signature", None)
+        st.session_state.pop("upload_retriever", None)
+        retriever = load_components(config, str(selected_vectorstore))
+        active_corpus_key = ("saved", str(selected_vectorstore))
+    else:
+        st.session_state.pop("upload_signature", None)
+        st.session_state.pop("upload_retriever", None)
+        st.session_state.messages = []
+        st.session_state.ollama_history = []
+        st.error("Upload PDF or TXT documents, or create a saved vector store first.")
+        st.stop()
+except Exception as e:
+    st.error(f"Failed to build the active retrieval system: {e}")
+    st.code(traceback.format_exc(), language="python")
+    st.stop()
+
+if st.session_state.get("active_corpus_key") != active_corpus_key:
+    st.session_state.messages = []
+    st.session_state.ollama_history = []
+    st.session_state.active_corpus_key = active_corpus_key
 
 notice = st.session_state.pop("chat_notice", None)
 if notice:
