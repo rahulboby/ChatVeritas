@@ -43,6 +43,25 @@ from scripts.convert_pdfs import build_session_retriever, uploaded_files_signatu
 load_dotenv()
 faulthandler.enable(all_threads=True)
 st.set_page_config(page_title="ChatVeritas", layout="wide", page_icon="💬")
+st.markdown(
+    """
+    <style>
+        [data-testid="stChatMessageAvatarUser"],
+        [data-testid="stChatMessageAvatarAssistant"] {
+            background-color: #e3e9ef !important;
+            color: #536a80 !important;
+        }
+        [data-testid="stChatMessageAvatarUser"] svg,
+        [data-testid="stChatMessageAvatarAssistant"] svg,
+        [data-testid="stChatMessageAvatarUser"] span,
+        [data-testid="stChatMessageAvatarAssistant"] span {
+            color: #536a80 !important;
+            fill: #536a80 !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ---------- Cache config loader ----------
 @st.cache_data
@@ -109,7 +128,7 @@ def render_copy_button(markdown):
                 border-radius: 6px;
                 padding: 0.3rem 0.65rem;
                 background: transparent;
-                color: inherit;
+                color: #ffffff;
                 font: inherit;
                 cursor: pointer;
             }}
@@ -268,7 +287,7 @@ uploaded_files = st.sidebar.file_uploader(
 )
 selected_provider = st.sidebar.selectbox(
     "Response endpoint",
-    ("Ollama", "Groq"),
+    ("Groq", "Ollama"),
 ).casefold()
 active_llm = config["model_ollama"] if selected_provider == "ollama" else config["llm"]
 active_config = {**config, "active_llm": active_llm}
@@ -340,7 +359,8 @@ if notice:
     st.info(notice)
 
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
+    avatar = ":material/person:" if msg["role"] == "user" else ":material/smart_toy:"
+    with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
         if msg["role"] == "assistant":
             render_copy_button(msg["content"])
@@ -359,10 +379,10 @@ if prompt := st.chat_input("Ask a question..."):
         st.rerun()
 
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar=":material/person:"):
         st.markdown(prompt)
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar=":material/smart_toy:"):
         try:
             # Use st.write_stream to display the generator output in real time
             stream_gen = generate_response_stream(
