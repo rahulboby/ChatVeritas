@@ -3,6 +3,7 @@ Dependencies: built-in: os, sys, time, textwrap, traceback, pathlib, faulthandle
 Custom: scripts.convert_pdfs, utils.config_loader, utils.chat_history, utils.vectorstores, utils.retriever.
 """
 import os
+import json
 import sys
 import time
 import textwrap
@@ -25,6 +26,7 @@ sys.path.append(str(PROJECT_ROOT))
 # ---- Third-party imports ----
 import faulthandler
 import streamlit as st
+import streamlit.components.v1 as components
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -61,6 +63,62 @@ def create_client(config, provider):
             raise RuntimeError("Set GROQ_API_KEY to use the Groq endpoint.")
 
     return OpenAI(api_key=api_key, base_url=active_llm["url"])
+
+
+def render_copy_button(markdown):
+    clipboard_payload = (
+        json.dumps(markdown)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
+    components.html(
+        f"""
+        <button id="copy-response" type="button" aria-label="Copy response">
+            Copy
+        </button>
+        <script>
+            const button = document.getElementById("copy-response");
+            const markdown = {clipboard_payload};
+            button.addEventListener("click", async () => {{
+                try {{
+                    if (navigator.clipboard && window.isSecureContext) {{
+                        await navigator.clipboard.writeText(markdown);
+                    }} else {{
+                        const textarea = document.createElement("textarea");
+                        textarea.value = markdown;
+                        textarea.style.position = "fixed";
+                        textarea.style.opacity = "0";
+                        document.body.appendChild(textarea);
+                        textarea.select();
+                        const copied = document.execCommand("copy");
+                        textarea.remove();
+                        if (!copied) throw new Error("Clipboard copy failed");
+                    }}
+                    button.textContent = "Copied";
+                    window.setTimeout(() => button.textContent = "Copy", 1600);
+                }} catch (error) {{
+                    button.textContent = "Copy failed";
+                    window.setTimeout(() => button.textContent = "Copy", 1600);
+                }}
+            }});
+        </script>
+        <style>
+            button {{
+                border: 1px solid rgba(128, 128, 128, 0.35);
+                border-radius: 6px;
+                padding: 0.3rem 0.65rem;
+                background: transparent;
+                color: inherit;
+                font: inherit;
+                cursor: pointer;
+            }}
+            button:hover {{ background: rgba(128, 128, 128, 0.12); }}
+        </style>
+        """,
+        height=42,
+    )
+
 
 # ---------- Load components with checkpoints ----------
 @st.cache_resource
@@ -284,6 +342,8 @@ if notice:
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+        if msg["role"] == "assistant":
+            render_copy_button(msg["content"])
 
 if prompt := st.chat_input("Ask a question..."):
     command = parse_chat_command(prompt)
@@ -330,6 +390,8 @@ if prompt := st.chat_input("Ask a question..."):
             response = final_text or "(No response)"
             chunks = []
             metrics = {}
+
+        render_copy_button(response)
 
         # ---- Metrics and context expanders ----
         with st.expander("RAG Metrics"):
