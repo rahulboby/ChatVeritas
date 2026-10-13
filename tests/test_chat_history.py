@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
 
-from scripts.chat import generate_response, main
+from scripts.chat import generate_response, init_chatveritas, main
 from utils.chat_history import (
     build_request_messages,
     parse_chat_command,
@@ -73,6 +73,51 @@ class ChatHistoryTests(unittest.TestCase):
             ],
         )
         self.assertNotIn("retrieved private context", str(history))
+
+    def test_general_chat_sends_direct_api_request_without_retrieval(self):
+        self.client.chat.completions.create.return_value = [
+            self.stream_chunk("A general answer")
+        ]
+        history = []
+
+        with redirect_stdout(StringIO()):
+            response = generate_response(
+                "Explain the idea simply",
+                self.client,
+                None,
+                self.config,
+                history,
+            )
+
+        messages = self.client.chat.completions.create.call_args.kwargs["messages"]
+        self.assertIn("general-purpose assistant", messages[0]["content"])
+        self.assertIn("Explain the idea simply", messages[-1]["content"])
+        self.assertNotIn("retrieved private context", str(messages))
+        self.assertEqual(response, "A general answer")
+        self.assertEqual(history[-2]["content"], "Explain the idea simply")
+
+    def test_general_chat_is_available_without_saved_vectorstores(self):
+        config = {
+            "model_ollama": {
+                "url": "http://localhost:11434/v1",
+                "provider": "ollama",
+                "model": "test-model",
+            }
+        }
+        with (
+            unittest.mock.patch("scripts.chat.load_dotenv"),
+            unittest.mock.patch("scripts.chat.load_config", return_value=config),
+            unittest.mock.patch("scripts.chat.list_vectorstores", return_value=[]),
+            unittest.mock.patch("scripts.chat.OpenAI") as openai_client,
+            unittest.mock.patch("builtins.input", side_effect=["0", ""]),
+            redirect_stdout(StringIO()) as output,
+        ):
+            client, retriever, loaded_config = init_chatveritas()
+
+        self.assertIsNone(retriever)
+        self.assertEqual(client, openai_client.return_value)
+        self.assertEqual(loaded_config["active_llm"], config["model_ollama"])
+        self.assertIn("0. General chatting", output.getvalue())
 
     def test_cli_does_not_store_partial_response_on_stream_failure(self):
         def broken_stream():
