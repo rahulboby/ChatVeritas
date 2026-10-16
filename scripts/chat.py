@@ -66,7 +66,9 @@ def init_chatveritas():
             break
         print("Choose 0 for General chatting or enter an available vector-store number.")
     while True:
-        endpoint = input("Response endpoint: Ollama (o, default) or Groq (g): ").strip().lower()
+        endpoint = input(
+            "Response endpoint: Ollama (o, default), Groq (g), or OpenAI (oa): "
+        ).strip().lower()
         if endpoint in {"", "o", "ollama"}:
             active_llm = config["model_ollama"]
             api_key = "ollama"
@@ -77,7 +79,13 @@ def init_chatveritas():
             if not api_key:
                 raise RuntimeError("Set GROQ_API_KEY to use the Groq endpoint.")
             break
-        print("Choose 'o' for Ollama or 'g' for Groq.")
+        if endpoint in {"oa", "openai"}:
+            active_llm = config["model_openai"]
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise RuntimeError("Set OPENAI_API_KEY to use the OpenAI endpoint.")
+            break
+        print("Choose 'o' for Ollama, 'g' for Groq, or 'oa' for OpenAI.")
 
     client = OpenAI(api_key=api_key, base_url=active_llm["url"])
     config["active_llm"] = active_llm
@@ -237,11 +245,12 @@ def main():
     print(f"Ready in {time.perf_counter() - start:.2f}s.")
     print(f"Provider: {config['active_llm']['provider']} | Model: {config['active_llm']['model']}")
     provider = config["active_llm"]["provider"].casefold()
+    provider_name = {"groq": "Groq", "openai": "OpenAI"}.get(provider, provider)
     history = []
     if provider == "ollama":
         print("Ollama conversation history is enabled; retrieved context is not retained.")
     else:
-        print("Groq conversation history is disabled.")
+        print(f"{provider_name} conversation history is disabled.")
     print("Use /clear to clear history, /bye or /exit to quit.\n")
 
     while True:
@@ -260,7 +269,7 @@ def main():
             if provider == "ollama":
                 print("Conversation history cleared.")
             else:
-                print("Groq does not retain conversation history.")
+                print(f"{provider_name} does not retain conversation history.")
             continue
 
         if command in {"/bye", "/exit"} or question.casefold() in {"exit", "quit", "q"}:

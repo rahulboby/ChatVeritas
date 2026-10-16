@@ -102,7 +102,12 @@ class ChatHistoryTests(unittest.TestCase):
                 "url": "http://localhost:11434/v1",
                 "provider": "ollama",
                 "model": "test-model",
-            }
+            },
+            "model_openai": {
+                "url": "https://api.openai.com/v1",
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+            },
         }
         with (
             unittest.mock.patch("scripts.chat.load_dotenv"),
@@ -118,6 +123,56 @@ class ChatHistoryTests(unittest.TestCase):
         self.assertEqual(client, openai_client.return_value)
         self.assertEqual(loaded_config["active_llm"], config["model_ollama"])
         self.assertIn("0. General chatting", output.getvalue())
+
+    def test_cli_openai_endpoint_uses_configured_url_and_env_key(self):
+        config = {
+            "model_openai": {
+                "url": "https://api.openai.com/v1",
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+            }
+        }
+        with (
+            unittest.mock.patch("scripts.chat.load_dotenv"),
+            unittest.mock.patch("scripts.chat.load_config", return_value=config),
+            unittest.mock.patch("scripts.chat.list_vectorstores", return_value=[]),
+            unittest.mock.patch("scripts.chat.os.getenv", return_value="test-openai-key"),
+            unittest.mock.patch("scripts.chat.OpenAI") as openai_client,
+            unittest.mock.patch(
+                "builtins.input",
+                side_effect=["0", "oa"],
+            ) as input_mock,
+            redirect_stdout(StringIO()),
+        ):
+            client, retriever, loaded_config = init_chatveritas()
+
+        openai_client.assert_called_once_with(
+            api_key="test-openai-key",
+            base_url="https://api.openai.com/v1",
+        )
+        self.assertEqual(client, openai_client.return_value)
+        self.assertIsNone(retriever)
+        self.assertEqual(loaded_config["active_llm"], config["model_openai"])
+        self.assertIn("OpenAI (oa)", input_mock.call_args_list[1].args[0])
+
+    def test_cli_openai_endpoint_requires_openai_api_key(self):
+        config = {
+            "model_openai": {
+                "url": "https://api.openai.com/v1",
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+            }
+        }
+        with (
+            unittest.mock.patch("scripts.chat.load_dotenv"),
+            unittest.mock.patch("scripts.chat.load_config", return_value=config),
+            unittest.mock.patch("scripts.chat.list_vectorstores", return_value=[]),
+            unittest.mock.patch("scripts.chat.os.getenv", return_value=None),
+            unittest.mock.patch("builtins.input", side_effect=["0", "openai"]),
+            redirect_stdout(StringIO()),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "OPENAI_API_KEY"):
+                init_chatveritas()
 
     def test_cli_does_not_store_partial_response_on_stream_failure(self):
         def broken_stream():
@@ -174,6 +229,24 @@ class ChatHistoryTests(unittest.TestCase):
 
         self.assertEqual(history_snapshots, [[], []])
         self.assertIn("Conversation history cleared.", output.getvalue())
+
+    def test_cli_reports_openai_history_as_stateless(self):
+        config = {
+            "active_llm": {"model": "test-model", "provider": "openai"},
+            "generation": {"temperature": 0.2, "max_new_tokens": 20},
+        }
+        with (
+            unittest.mock.patch(
+                "scripts.chat.init_chatveritas",
+                return_value=(self.client, None, config),
+            ),
+            unittest.mock.patch("builtins.input", side_effect=["/clear", "/bye"]),
+            redirect_stdout(StringIO()) as output,
+        ):
+            main()
+
+        self.assertIn("OpenAI conversation history is disabled.", output.getvalue())
+        self.assertIn("OpenAI does not retain conversation history.", output.getvalue())
 
     def test_ollama_request_contains_plain_prior_turns_and_current_prompt(self):
         history = [

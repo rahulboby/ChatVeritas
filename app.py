@@ -75,9 +75,14 @@ def create_client(config, provider):
     if provider == "ollama":
         active_llm = config["model_ollama"]
         api_key = "ollama"
+    elif provider == "openai":
+        active_llm = config["model_openai"]
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("Set OPENAI_API_KEY to use the OpenAI endpoint.")
     else:
         active_llm = config["llm"]
-        api_key = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             raise RuntimeError("Set GROQ_API_KEY to use the Groq endpoint.")
 
@@ -327,14 +332,20 @@ if general_chat:
     uploaded_files = []
 selected_provider = st.sidebar.selectbox(
     "Response endpoint",
-    ("Groq", "Ollama"),
+    ("Groq", "Ollama", "OpenAI"),
 ).casefold()
-active_llm = config["model_ollama"] if selected_provider == "ollama" else config["llm"]
+active_llm = {
+    "groq": config["llm"],
+    "ollama": config["model_ollama"],
+    "openai": config["model_openai"],
+}[selected_provider]
 active_config = {**config, "active_llm": active_llm}
 if selected_provider == "ollama":
     st.sidebar.caption("Ollama retains question-and-answer history; retrieved context is not retained.")
-else:
+elif selected_provider == "groq":
     st.sidebar.caption("Groq requests are stateless; prior turns are not sent.")
+else:
+    st.sidebar.caption("OpenAI requests are stateless; prior turns are not sent.")
 
 if "history_provider" not in st.session_state:
     st.session_state.history_provider = selected_provider

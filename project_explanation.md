@@ -9,7 +9,7 @@ ChatVeritas is a Python conversational application with two modes:
 
 It has a Streamlit web interface and a terminal chat client. The project also provides scripts to collect web text, convert PDFs to text, build document indexes, and inspect saved chunks.
 
-The language model is not bundled or run by the project. ChatVeritas calls either Groq's OpenAI-compatible API or an OpenAI-compatible Ollama server using the `openai` Python client. Embedding and reranking models run locally through Sentence Transformers.
+The language model is not bundled or run by the project. ChatVeritas calls OpenAI's API, Groq's OpenAI-compatible API, or an OpenAI-compatible Ollama server using the `openai` Python client. Embedding and reranking models run locally through Sentence Transformers.
 
 ## 2. Main technologies
 
@@ -18,7 +18,7 @@ The language model is not bundled or run by the project. ChatVeritas calls eithe
 | Python | Application, ingestion scripts, and utility modules |
 | Streamlit | Browser-based chat interface, uploads, session state, and streaming output |
 | OpenAI Python SDK | Makes streaming chat-completion requests to compatible endpoints |
-| Groq API / Ollama | Configurable language-model providers |
+| OpenAI API / Groq API / Ollama | Configurable language-model providers |
 | Sentence Transformers | Encodes document passages and questions into vectors |
 | FAISS (`faiss-cpu`) | Stores vectors and performs nearest-neighbor search using an `IndexFlatL2` index |
 | Cross-Encoder | Scores query/passage pairs to reorder initial FAISS results |
@@ -57,13 +57,14 @@ The repository contains saved vector stores under `data/vectorstore_assembly_tut
 
 ### Existing README caveat
 
-The existing `README.md` includes useful historical background, but parts of its later inference walkthrough describe a different/older design (including a locally loaded Qwen generation model and settings that do not match the current configuration). For an implementation-accurate report, use `app.py`, `scripts/`, `utils/`, and `config/config.json` as the evidence for current behavior. Specifically, the current generation path is a streaming API call to Groq or an OpenAI-compatible Ollama endpoint; the current configuration uses 2,000-character chunks, 100-character overlap, 50 FAISS candidates, and 9 reranked results. Avoid silently combining README-era claims with the current implementation.
+The current generation path is a streaming API call to OpenAI, Groq, or an OpenAI-compatible Ollama endpoint; the current configuration uses 2,000-character chunks, 100-character overlap, 50 FAISS candidates, and 9 reranked results. Use `app.py`, `scripts/`, `utils/`, and `config/config.json` as the evidence for current behavior.
 
 ## 4. Configuration and providers
 
 The checked-in `config/config.json` currently specifies:
 
 - **Groq:** `https://api.groq.com/openai/v1`, model `openai/gpt-oss-120b`, configured temperature `0.2`.
+- **OpenAI:** `https://api.openai.com/v1`, model `gpt-4o-mini`, configured temperature `0.3`.
 - **Ollama:** `http://localhost:11434/v1`, model `gpt-oss:20b`, configured temperature `0.3`.
 - **Embeddings:** `sentence-transformers/all-MiniLM-L6-v2`, configured for CPU.
 - **Reranking:** `cross-encoder/ms-marco-MiniLM-L-6-v2`, configured for CPU.
@@ -71,9 +72,9 @@ The checked-in `config/config.json` currently specifies:
 - **Generation:** maximum 4,000 tokens and fallback temperature `0.4`.
 - **Paths:** raw documents at `data/raw` and the vector-store base path at `data/vectorstore`.
 
-The web UI offers Groq and Ollama and defaults to the first option, Groq. For Groq it reads `GROQ_API_KEY`, with `OPENAI_API_KEY` as a fallback. The terminal client defaults to Ollama; choosing Groq there requires `GROQ_API_KEY`. Ollama must be running locally (or its configured URL must be changed). The application uses the endpoint/model values in the config; it does not start the LLM server.
+The web UI offers Groq, Ollama, and OpenAI, defaulting to Groq. Groq reads `GROQ_API_KEY`; OpenAI reads `OPENAI_API_KEY`. The terminal client defaults to Ollama; selecting Groq or OpenAI requires the corresponding key in `.env`. Ollama must be running locally (or its configured URL must be changed). The application uses the endpoint/model values in the config; it does not start the LLM server.
 
-For Ollama, ChatVeritas sends prior plain question-and-answer turns along with the new request. Retrieved document context is not added to that saved history. Groq calls are stateless in this application: earlier turns are not sent. In both interfaces `/clear` clears chat history; the terminal also accepts `/bye` and `/exit` to quit. In the web UI, exit commands display a notice because the browser chat remains open.
+For Ollama, ChatVeritas sends prior plain question-and-answer turns along with the new request. Retrieved document context is not added to that saved history. Groq and OpenAI calls are stateless in this application: earlier turns are not sent. In both interfaces `/clear` clears chat history; the terminal also accepts `/bye` and `/exit` to quit. In the web UI, exit commands display a notice because the browser chat remains open.
 
 ## 5. Document preparation and persistent indexing
 
@@ -144,7 +145,7 @@ python -m pip install -r requirements.txt
 streamlit run app.py
 ```
 
-On Windows, activate the environment with `.venv\Scripts\activate`. Add the Groq API key to a local `.env` file as `GROQ_API_KEY=...` if using Groq; do not commit that file. Or start Ollama and make its configured OpenAI-compatible endpoint/model available. To run the terminal client:
+On Windows, activate the environment with `.venv\Scripts\activate`. Add `GROQ_API_KEY=...` for Groq or `OPENAI_API_KEY=...` for OpenAI to a local `.env` file; do not commit that file. Or start Ollama and make its configured OpenAI-compatible endpoint/model available. To run the terminal client:
 
 ```bash
 python scripts/chat.py
@@ -164,7 +165,7 @@ Validation was performed in the repository's existing `.venv` without changing s
 
 An additional standalone file, `utils/test_reranker.py`, imports a Cross-Encoder, loads its configured model, and prints a single load duration. It is a manual diagnostic, not a test discovered by `unittest discover -s tests`; it was not run for this documentation task because it would trigger model initialization/download and would not constitute a retrieval or answer-quality benchmark.
 
-The 12 passing unit tests cover CLI and provider chat-history behavior, general-chat setup without vector stores, command handling, avoiding partial history after a streaming failure, and model download/cache/retry behavior. They mock provider/model-download interactions; they do not exercise a live Groq request, a running Ollama service, a live Streamlit browser session, or end-to-end embedding and retrieval against downloaded models.
+The unit tests cover CLI provider selection and chat-history behavior, general-chat setup without vector stores, command handling, avoiding partial history after a streaming failure, and model download/cache/retry behavior. They mock provider/model-download interactions; they do not exercise live OpenAI or Groq requests, a running Ollama service, a live Streamlit browser session, or end-to-end embedding and retrieval against downloaded models.
 
 ## 11. System architecture and component boundaries
 
@@ -186,7 +187,7 @@ flowchart LR
     RET --> RERANK[Cross-Encoder reranking]
     RERANK --> PROMPT[Context + question prompt]
     USER --> PROMPT
-    PROMPT --> API[Groq or Ollama API]
+    PROMPT --> API[OpenAI, Groq, or Ollama API]
     API --> UI[Streamlit app.py or terminal scripts/chat.py]
 ```
 
@@ -195,7 +196,7 @@ General chat takes a shorter path: user question → provider API → streamed a
 ### Runtime responsibilities
 
 - **`app.py`** owns the web interaction: page setup, sidebar selections, provider client construction, resource caching, uploaded-file lifecycle, chat display, streaming and error display. `st.cache_data` caches config; `st.cache_resource` caches loaded retrievers keyed by their arguments. Streamlit session state holds visible messages, active-corpus identity, upload retriever/signature, and Ollama history.
-- **`scripts/chat.py`** is the interactive terminal client. It presents general chat as option zero and discovered stores as numbered options, then prompts for Ollama (default) or Groq.
+- **`scripts/chat.py`** is the interactive terminal client. It presents general chat as option zero and discovered stores as numbered options, then prompts for Ollama (default), Groq, or OpenAI.
 - **`utils.retriever.Retriever`** loads the index and chunk list, checks that the counts match and that the index is non-empty, then performs query encoding, candidate lookup, and reranking. It fails fast for non-positive `top_k` or candidate counts.
 - **`utils.reranker.Reranker`** forms `(question, passage)` pairs, predicts scores with the configured Cross-Encoder, sorts descending by score, and returns the requested number.
 - **`utils.chat_history`** defines exact, case-insensitive terminal/web chat commands and provider-specific message/history behavior. Completed plain question/answer exchanges are retained only for Ollama.
@@ -211,7 +212,7 @@ The FAISS vector at position *i* corresponds to chunk metadata at list position 
 
 1. The user chooses **General chatting** or a discovered saved vector store in the sidebar.
 2. For a RAG store, the user may upload multiple PDF or TXT files. A non-empty upload set takes precedence over the saved corpus. It is explicitly session-temporary. General chat disables and discards upload selection.
-3. The user selects Groq or Ollama and submits a question.
+3. The user selects Groq, Ollama, or OpenAI and submits a question.
 4. Streamed answer tokens appear in the assistant message. A copy button is shown for assistant messages.
 5. RAG sessions expose retrieval timing, source list, retrieved passages, FAISS distances, Cross-Encoder scores, and generation metrics. General mode exposes generation time and prompt tokens.
 6. Changing provider resets Ollama history; changing the active corpus resets visible messages and Ollama history. `/clear` clears history/messages. `/bye` and `/exit` cannot close a browser tab and instead produce a notice.
@@ -242,7 +243,7 @@ The configured `top_k=9` therefore refers to final Cross-Encoder-selected result
 
 Both clients use the OpenAI SDK's Chat Completions interface with `stream=True`, configured model, temperature, and `max_tokens`. The shared history helper sends a system message, optionally prior Ollama plain turns, and the current prompt. The retrieval context is included in the current prompt; it is not copied into the stored conversation history. Stream usage token counts are recorded when a provider includes usage in streamed chunks; absent usage is rendered as zero.
 
-The Groq URL, model, and configured temperature come from `config["llm"]`; Ollama values come from `config["model_ollama"]`. In the web app the active provider's temperature overrides the generation fallback. The CLI currently uses `config["generation"]["temperature"]` instead of the active endpoint's configured temperature. This is a behavior difference between clients and a candidate for later alignment.
+The Groq URL, model, and configured temperature come from `config["llm"]`; OpenAI values come from `config["model_openai"]`, and Ollama values come from `config["model_ollama"]`. In the web app the active provider's temperature overrides the generation fallback. The CLI currently uses `config["generation"]["temperature"]` instead of the active endpoint's configured temperature. This is a behavior difference between clients and a candidate for later alignment.
 
 ## 14. Dataset inventory observed in the checkout
 
@@ -271,15 +272,17 @@ These timings measure the local test/compile commands only. **No live RAG latenc
 
 ### Test coverage map
 
-`tests/test_chat_history.py` has nine tests covering:
+`tests/test_chat_history.py` has twelve tests covering:
 
 - A successful CLI response stores only the completed plain question and answer, not retrieved private context.
 - General chat sends a direct request without retrieval.
+- CLI OpenAI selection uses `OPENAI_API_KEY` and its configured API URL; missing credentials fail explicitly.
+- OpenAI history status and `/clear` messages identify OpenAI as stateless.
 - General chat initializes when no saved stores exist.
 - A failed stream does not store a partial response.
 - `/clear` clears history before the next CLI turn.
 - Ollama requests include prior plain turns.
-- Groq requests omit prior turns.
+- Groq and OpenAI requests omit prior turns.
 - Only successful Ollama exchanges are recorded.
 - Chat command parsing is case-insensitive and exact.
 

@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white" alt="Streamlit">
   <img src="https://img.shields.io/badge/FAISS-Vector%20search-0467DF" alt="FAISS vector search">
   <img src="https://img.shields.io/badge/Sentence--Transformers-Embeddings-32A852" alt="Sentence Transformers embeddings">
-  <img src="https://img.shields.io/badge/Groq%20%7C%20Ollama-OpenAI--compatible%20APIs-6E56CF" alt="Groq and Ollama APIs">
+  <img src="https://img.shields.io/badge/Groq%20%7C%20OpenAI%20%7C%20Ollama-LLM%20APIs-6E56CF" alt="Groq, OpenAI, and Ollama APIs">
 </p>
 
 </div>
@@ -59,14 +59,14 @@ python scripts/chat.py     # Terminal interface
 
 Choose **General chatting** to start without a vector store, or select a saved store for RAG. In the web app, temporary PDF/TXT uploads can be used instead of a saved store.
 
-The configured endpoints are Groq and Ollama. Set `GROQ_API_KEY` to use Groq; configure and run Ollama locally to use that endpoint. Model names, endpoints, retrieval settings, and local model settings are in [`config/config.json`](config/config.json).
+The configured endpoints are Groq, OpenAI, and Ollama. Set `GROQ_API_KEY` for Groq or `OPENAI_API_KEY` for OpenAI in your local `.env`; configure and run Ollama locally to use that endpoint. Model names, endpoints, retrieval settings, and local model settings are in [`config/config.json`](config/config.json).
 
 ## Technology
 
 - **Interface:** Streamlit web app and terminal chat
 - **Ingestion:** text cleaning, recursive chunking, Sentence Transformers
 - **Retrieval:** FAISS vector search followed by Cross-Encoder reranking
-- **Generation:** OpenAI-compatible chat completions API (Groq or Ollama)
+- **Generation:** OpenAI Chat Completions API or OpenAI-compatible Groq/Ollama endpoints
 - **Document inputs:** `.txt` files for saved stores; temporary `.txt` and PDF uploads in the web app
 
 ## Project map

@@ -12,6 +12,12 @@
     "model": "gpt-oss:20b",
 	"temperature": 0.3
   },
+  "model_openai": {
+    "url": "https://api.openai.com/v1",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": 0.3
+  },
 
   "embedding": {
     "model": "sentence-transformers/all-MiniLM-L6-v2",
