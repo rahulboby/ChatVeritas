@@ -8,8 +8,7 @@ from io import StringIO
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
-
-from scripts.chat import generate_response, init_chatveritas, main
+from chat import generate_response, init_chatveritas, main
 from utils.chat_history import (
     build_request_messages,
     parse_chat_command,
